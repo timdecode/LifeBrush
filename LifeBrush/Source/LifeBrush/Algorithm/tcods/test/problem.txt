@@ -1,0 +1,8 @@
+in test/bunny.obj
+out test/solution.eobj
+vertex 7094 -0.5
+vertex 9279 -0.5
+vertex 11275 1.5
+vertex 12385 0.5
+vertex 13192 1
+angle 0

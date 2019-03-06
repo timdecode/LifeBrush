@@ -1,0 +1,146 @@
+FILE FORMATS
+------------
+
+This document describes the file format used by TCODS for mesh input/output.
+All files are encoded as standard 8-bit ASCII text files.
+
+
+INPUT
+-----
+
+=============
+Wavefront OBJ
+=============
+extension: .obj
+
+The most basic Wavefront OBJ file consists of vertex data and face data.
+Vertex data is specified by lines of the form
+
+  v [x] [y] [z]
+
+where [x], [y], and [z] are x, y and z vertex coordinates. Face data is
+specified by lines of the form
+
+  f [i1] [i2] ... [in]
+
+where [i1], [i2], etc., are 1-based indices into the vertex list.  For
+instance, the following data specifies a simple mesh of a square consisting of
+two triangles:
+
+  v 0 0 0
+  v 1 0 0
+  v 1 1 0
+  v 0 1 0
+  f 1 3 4
+  f 1 2 3
+
+Note that TCODS supports only meshes where all faces are triangles.  All other
+attributes (e.g., vertex normals, texture coordinates, etc.) are ignored.
+
+
+OUTPUT
+------
+
+=======================
+Wavefront OBJ, per-face
+=======================
+extension: .eobj
+
+This format exports direction fields via a single unit-length vector per face.
+It is identical to the Wavefront OBJ format, except for additional lines of the
+form
+
+  # attrs f [i] [x] [y] [z]
+
+Here [i] is a 1-based index into the face list, and tt[x], tt[y], and tt[z] are
+the x, y and z coordinates of the unit vector on the corresponding face.  The #
+character denotes a comment line, which means that that this additional data
+will not interfere with standard Wavefront OBJ parsers.
+
+
+=========================
+Wavefront OBJ, per-vertex
+=========================
+extension: .objx
+
+This format also extends the Wavefront OBJ format, but exports direction fields
+as a single unit vector per vertex.  In particular, for each vertex there is an
+additional line of the form
+
+vf [x] [y] [z]
+
+where [x], [y], and [z] are the x, y and z coordinates of the unit vector
+associated with the corresponding vertices -- vertices and per-vertex field
+directions are given in the same order.
+
+
+============
+JavaView XML
+============
+extension: .jvx
+
+This format is an XML-based format used by JavaView (http://www.javaview.de).
+It is particularly useful for quad meshing applications where direction fields
+may be smooth only up to local rotations by multiples of pi/2.  The primary
+fields in this format are:
+
+  points  - vertex coordinates as (x,y,z) triples
+  faces   - triangle indices as (i1,i2,i3) triples (0-based indexing)
+  vectors - per-face direction vectors as (x,y,z) triples
+
+In the standard JVX format, a direction field on a triangulation of a square is
+encoded by the following file:
+
+  <?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>
+  <!DOCTYPE jvx-model SYSTEM "http://www.javaview.de/rsrc/jvx.dtd">
+  <jvx-model>
+     <geometries>
+        <geometry name="some name">
+           <pointSet dim="3">
+              <points num="4">
+                 <p>0 0 0</p>
+                 <p>1 0 0</p>
+                 <p>1 1 0</p>
+                 <p>0 1 0</p>
+              </points>
+           </pointSet>
+           <faceSet>
+              <faces num="2">
+                 <f>0 2 3</f>
+                 <f>0 1 2</f>
+              </faces>
+           </faceSet>
+           <vectorField name="First field" base="element">
+              <vectors num="2">
+                 <v>1.0 0.0 0.0</v>
+                 <v>1.0 0.0 0.0</v>            
+              </vectors>
+           </vectorField>
+           <vectorField name="Second field" base="element">
+              <vectors num="2">
+                 <v>0.0 1.0 0.0</v>
+                 <v>0.0 1.0 0.0</v>            
+              </vectors>
+           </vectorField>
+        </geometry>
+     </geometries>
+  </jvx-model>
+
+Note that there are actually two direction fields here, pointing in orthogonal
+directions.  TCODS also exports "matching" data that can be used to identify
+sheets of a four-fold covering (as needed by QuadCover):
+
+  <matchingSet>
+     <matchings num="[E]">
+        <m>[i] [j] [n]</m>
+        ...
+     </matchings>
+  </matchingSet>
+
+Here [E] is the number of non-boundary edges in the mesh, [i] and [j] are the
+indices of two faces that share an edge, and [n] is the matching number.  More
+specifically, a matching number n indicates that the frame in triangle i needs
+to be rotated counterclockwise by an angle of n pi/2 to get it to agree with
+the frame in triangle j.  The matchings exported by TCODS are exact for all
+edges, even near singularities.
+
