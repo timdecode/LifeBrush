@@ -9,7 +9,11 @@ Some things are broken as a result of major refactorings and new ideas:
 
 The synthesis of attribute vectors was fragile. It was easy to break agents during the mapping process. For now, synthesis copies the agent configuration directly from the exemplar to the output. It is still possible to reassign agent behaviors by creating a new exemplar with the required behavior, but this will reassign all of the agent attributes from that exemplar to the output agent. This method is much faster and cleaner, plus it isn't as fragile as the old idea. I'll probably keep it.
 
+# License and Copyright 
+
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
+
+All of my code is released under a MIT license. There are included source-codes released under their respective licenses.
 
 **Please cite with:**
 ```
