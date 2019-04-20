@@ -6,7 +6,6 @@
 #include "ShipEditorSimulation/MeshSimulation.h"
 #include "Visualization/Timeline.h"
 #include "SimulationSnapshotActor.h"
-#include "MolecularLego/MolecularLego_Relaxation.h"
 
 #include "Utility.h"
 #include "SimulationSnapshotActor.h"
@@ -111,24 +110,24 @@ void UFlexSimulationComponent::initFlexSimulationObject()
 
 void UFlexSimulationComponent::_readRules()
 {
-	if (!rulesActor) return;
+	//if (!rulesActor) return;
 
-	UMLElementSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<UMLElementSimulation>();
+	//UMLElementSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<UMLElementSimulation>();
 
-	ruleSimulation->ruleGraph.init();
-	ruleSimulation->ruleGraph.clear();
+	//ruleSimulation->ruleGraph.init();
+	//ruleSimulation->ruleGraph.clear();
 
-	TArray<USceneComponent*> childSceneComponents;
-	rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
+	//TArray<USceneComponent*> childSceneComponents;
+	//rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
 
-	for (USceneComponent * child : childSceneComponents)
-	{
-		AMLRuleActor * ruleActor = Cast<AMLRuleActor>(child->GetOwner());
+	//for (USceneComponent * child : childSceneComponents)
+	//{
+	//	AMLRuleActor * ruleActor = Cast<AMLRuleActor>(child->GetOwner());
 
-		if( !ruleActor ) continue;
+	//	if( !ruleActor ) continue;
 
-		ruleActor->writeToGraph(ruleSimulation->ruleGraph);
-	}
+	//	ruleActor->writeToGraph(ruleSimulation->ruleGraph);
+	//}
 }
 
 auto UFlexSimulationComponent::init(
