@@ -2,8 +2,6 @@
 
 #include "LifeBrush.h"
 
-#include "MappedInstancedStaticMesh.h"
-
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 
 #include "MeshSimulation.h"

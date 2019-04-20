@@ -42,6 +42,9 @@ void AElementActor::_loadAggregate(FGraphNodeHandle elementNode, FGraph& graph)
 	// load any aggregate proxy children
 	TArray<USceneComponent*> children;
 	TArray<FGraphNodeHandle> particlesInBody;
+	TArray<FGraphNodeHandle> membersInBody;
+	TArray<FGraphNodeHandle> aggregatesInBody;
+
 	sceneComponent->GetChildrenComponents(true, children);
 	if (children.Num())
 	{
@@ -69,7 +72,12 @@ void AElementActor::_loadAggregate(FGraphNodeHandle elementNode, FGraph& graph)
 				mesh.material = aggregateProxy->GetMaterial(0);
 			}
 
-			particlesInBody.Add(aggregateHandle);
+			if (aggregateProxy->particleOrMember == EAggregateProxyParticleOrMember::Particle)
+				particlesInBody.Add(aggregateHandle);
+			else if( aggregateProxy->particleOrMember == EAggregateProxyParticleOrMember::Member )
+				membersInBody.Add(aggregateHandle);
+
+			aggregatesInBody.Add(aggregateHandle);
 		}
 
 		if (!elementNode(graph).hasComponent<FFlexParticleObject>())
@@ -79,14 +87,24 @@ void AElementActor::_loadAggregate(FGraphNodeHandle elementNode, FGraph& graph)
 			elementNode(graph).addComponent<FFlexParticleObject>(graph);
 		}
 		
-		// link them together, as a rigid and an aggregate
-		particlesInBody.Add(elementNode);
-		auto& rigidBody = FFlexRigidBodyObject::createRigidBody(graph, particlesInBody, FGraphNodeHandle::null /* we want a new node created */ );
+		if (this->particleOrMember == EAggregateProxyParticleOrMember::Particle)
+			particlesInBody.Add(elementNode);
+		else if (this->particleOrMember == EAggregateProxyParticleOrMember::Member)
+			membersInBody.Add(elementNode);
 
-		// remove the elementNode
-		particlesInBody.Remove(elementNode);
-		particlesInBody.Add(rigidBody.nodeHandle());
-		FMLAggregateNO::aggregateNodes(particlesInBody, graph, elementNode);
+		// link them together, as a rigid and an aggregate
+		auto& rigidBody = FFlexRigidBodyObject::createRigidBody(graph, particlesInBody, FGraphNodeHandle::null /* we want a new node created */ );
+		rigidBody.node(graph).orientation = elementNode(graph).orientation;
+		aggregatesInBody.Add(rigidBody.nodeHandle());
+
+		FMLAggregateNO::aggregateNodes(aggregatesInBody, graph, elementNode);
+
+		// finally, connect the members
+		for (FGraphNodeHandle member : membersInBody)
+		{
+			graph.connectNodes<FFlexRigidBodyConnection>(rigidBody.nodeHandle(), member);
+			member(graph).addComponent<FFlexRigidMember>(graph);
+		}
 	}
 }
 
@@ -172,3 +190,24 @@ void AElementActor::readFromActor( AElementActor* elementActor )
 	graphObjects = elementActor->graphObjects;
 }
 
+void AElementActor::showSelectionOutline()
+{
+	UStaticMeshComponent * mesh = FindComponentByClass<UStaticMeshComponent>();
+
+	// we visualize selection through a post-process effect on the custom depth
+	if (mesh)
+	{
+		mesh->SetRenderCustomDepth(true);
+	}
+}
+
+void AElementActor::hideSelectionOutline()
+{
+	UStaticMeshComponent * mesh = FindComponentByClass<UStaticMeshComponent>();
+
+	// we visualize selection through a post-process effect on the custom depth
+	if (mesh)
+	{
+		mesh->SetRenderCustomDepth(false);
+	}
+}

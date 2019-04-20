@@ -6,7 +6,6 @@
 #if WITH_EDITOR
 
 class UGraphComponent;
-class UMappedInstancedStaticMesh;
 class IStructureDetailsView;
 
 #include "UnrealEd.h" 

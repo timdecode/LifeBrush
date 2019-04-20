@@ -52,8 +52,8 @@ public class LifeBrush : ModuleRules
         
         bEnableShadowVariableWarnings = false;
 
-        MinFilesUsingPrecompiledHeaderOverride = 1;
-        bFasterWithoutUnity = true;
+        //MinFilesUsingPrecompiledHeaderOverride = 1;
+        //bFasterWithoutUnity = true;
 	}
 
     private void _addEigen()

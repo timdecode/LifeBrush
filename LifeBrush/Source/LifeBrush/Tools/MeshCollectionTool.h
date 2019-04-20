@@ -13,6 +13,18 @@
 
 class UGrabTool;
 
+class MeshCollectionSpaceActorDelegate
+{
+public:
+	virtual void didGrabItem(
+		UCollectionSpace * collectionSpace,
+		int32 itemAtIndex,
+		FTransform grabTransform,
+		UPrimitiveComponent * grabbedCell,
+		FTransform cellTransform,
+		FBox cellBounds) {}
+};
+
 UCLASS(DefaultToInstanced)
 class LIFEBRUSH_API AMeshCollectionSpaceActor : public AActor, public ICollectionSpaceDataSource, public ICollectionSpaceDelegate
 {
@@ -25,8 +37,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	TArray<UStaticMesh*> staticMeshes;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	class UMeshCollectionTool * meshTool = nullptr;
+
+	MeshCollectionSpaceActorDelegate * delegate = nullptr;
 
 public:
 	AMeshCollectionSpaceActor();
@@ -54,7 +66,7 @@ protected:
 
 // For creating elements from a mesh, or reassigning the mesh of an existing element.
 UCLASS(Blueprintable)
-class UMeshCollectionTool : public UTool, public IGrabDelegate
+class UMeshCollectionTool : public UTool, public IGrabDelegate, public MeshCollectionSpaceActorDelegate
 {
 	GENERATED_BODY()
 
@@ -62,14 +74,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	TSubclassOf<class AMeshCollectionSpaceActor> meshCollectionClass;
 
-public:
-	void init(FRGC_UToolInitProperties& initProperties, UCameraComponent * camera)
-	{
-		UTool::init(initProperties);
 
-		_regionGrowingComponent = initProperties.regionGrowingComponent;
-		_camera = camera;
-	}
+
+public:
+	void init(FRGC_UToolInitProperties& initProperties, UCameraComponent * camera);
+
+	void spawnCollectionSpaceActor();
+
 
 	virtual void focused() override;
 	virtual void loseFocus() override;
@@ -96,24 +107,17 @@ public:
 	virtual void faceDown_released();
 	virtual void faceUp_released(USceneComponent * interactionPoint /* = nullptr */);
 
-
-	UFUNCTION()
-	void OnRightSelectionPointOverlapBegin(class UPrimitiveComponent* ourComponent, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult);
-
-	UFUNCTION()
-	void OnRightSelectionPointOverlapEnd(class UPrimitiveComponent* ourComponent, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-
-	void didGrab(UCollectionSpace * collectionSpace, int32 itemAtIndex, FTransform grabTransform, UPrimitiveComponent * grabbedCell, FTransform cellTransform, FBox cellBounds);
+	// MeshCollectionSpaceActorDelegate
+	virtual void didGrabItem(UCollectionSpace * collectionSpace, int32 itemAtIndex, FTransform grabTransform, UPrimitiveComponent * grabbedCell, FTransform cellTransform, FBox cellBounds) override;
 
 	// IGrabDelegate
 	virtual void didPlace_Implementation(UGrabTool * grabTool, AActor * draggingActor) override;
 	virtual void didCancel_Implementation(UGrabTool * grabTool, AActor * draggingActor) override;
 
 protected:
-	void _spawnCollectionSpaceActor();
 
-protected:
-	class URegionGrowingComponent * _regionGrowingComponent;
+public:
+	class UDiscreteElementEditorComponent * _elementEditor;
 	class UCameraComponent * _camera;
 	class AMeshCollectionSpaceActor * _collectionSpaceActor;
 	class UCollectionSpace * _collectionSpace;

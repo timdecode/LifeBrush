@@ -113,13 +113,13 @@ void UFlexSimulationComponent::_readRules()
 {
 	if (!rulesActor) return;
 
-	TArray<USceneComponent*> childSceneComponents;
-	rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
-
 	UMLElementSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<UMLElementSimulation>();
 
 	ruleSimulation->ruleGraph.init();
 	ruleSimulation->ruleGraph.clear();
+
+	TArray<USceneComponent*> childSceneComponents;
+	rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
 
 	for (USceneComponent * child : childSceneComponents)
 	{
@@ -192,19 +192,6 @@ AActor * UFlexSimulationComponent::snapshotSimulationStateToWorld(UWorld * world
 
 	return newActor;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 auto FFlexSimulation::tick(float deltaT) -> void
 {
@@ -1009,6 +996,7 @@ void FFlexSimulation::_loadRigids()
 	auto& velocities = graphSimulation.componentStorage<FVelocityGraphObject>();
 	auto& particles = graphSimulation.componentStorage<FFlexParticleObject>();
 	auto& baseRotations = graphSimulation.componentStorage<FFlexBaseRotation>();
+	auto& members = graphSimulation.componentStorage<FFlexRigidMember>();
 
 	auto rigidN = graphSimulation.componentStorage<FFlexRigidBodyObject>().size();
 
@@ -1039,6 +1027,8 @@ void FFlexSimulation::_loadRigids()
 
 		FVelocityGraphObject nodeVelocity = node.component<FVelocityGraphObject>(graphSimulation);
 
+		FQuat inverseRotation = node.orientation.Inverse();
+
 		// - set the rest positions and normals
 		// - find the centre of mass
 		for (auto edgeIndex : node.edges)
@@ -1052,32 +1042,39 @@ void FFlexSimulation::_loadRigids()
 			FGraphNodeHandle other = edgeHandle(graphSimulation).other(node.handle());
 
 			FFlexBaseRotation& otherBaseRotation = other(graphSimulation).addComponent<FFlexBaseRotation>(graphSimulation);
-			otherBaseRotation.rotation = other(graphSimulation).orientation;
+			otherBaseRotation.rotation = inverseRotation * other(graphSimulation).orientation;
 			otherBaseRotation.flexRigidBodyIndex = rigidIndex;
 
-			// does the other end of the connection have a particle?
-			FFlexParticleObject * otherParticle = particles.componentPtrForNode(other);
-
-			if(!otherParticle) continue;
-
-			if (FVelocityGraphObject * otherVelocity = velocities.componentPtrForNode(other))
+			// load the particle at the other end
+			if (FFlexParticleObject * otherParticle = particles.componentPtrForNode(other))
 			{
-				otherVelocity->linearVelocity = nodeVelocity.linearVelocity;
-				otherVelocity->angularVelocity = nodeVelocity.angularVelocity;
+				if (FVelocityGraphObject * otherVelocity = velocities.componentPtrForNode(other))
+				{
+					otherVelocity->linearVelocity = nodeVelocity.linearVelocity;
+					otherVelocity->angularVelocity = nodeVelocity.angularVelocity;
+				}
+
+				otherParticle->group = node.handle().index;
+				otherParticle->selfCollide = false;
+
+				_rigids->indices.push_back(other.index);
+
+				const FVector restPosition = inverseRotation.RotateVector(other(graphSimulation).position - node.position);
+				// The restNormal.w is supposed to be the signed rest distance inside of the shape.
+				// HACK, we'll just say it is at the surface.
+				const FVector4 restNormal = FVector4(restPosition.GetSafeNormal(), 0.0f);
+
+				_rigids->localRestPositions.push_back(restPosition);
+				_rigids->localRestNormals.push_back(restNormal);
 			}
 
-			otherParticle->group = node.handle().index;
-			otherParticle->selfCollide = false;
-
-			_rigids->indices.push_back(other.index);
-
-			const FVector restPosition = other(graphSimulation).position - node.position;
-			// The restNormal.w is supposed to be the signed rest distance inside of the shape.
-			// HACK, we'll just say it is at the surface.
-			const FVector4 restNormal = FVector4(restPosition.GetSafeNormal(), 0.0f); 
-
-			_rigids->localRestPositions.push_back(restPosition);
-			_rigids->localRestNormals.push_back(restNormal);
+			// load the member at the other end
+			if (FFlexRigidMember * member = members.componentPtrForNode(other))
+			{
+				member->relativeOffset = inverseRotation.RotateVector(other(graphSimulation).position - node.position);
+				member->relativeOrientation = inverseRotation * other(graphSimulation).orientation;
+				member->flexRigidIndex = rigidIndex;
+			}
 		}
 
 		_rigids->stiffness.push_back(rigid.stiffness);
@@ -1102,15 +1099,26 @@ void FFlexSimulation::_loadRigids()
 
 void FFlexSimulation::_readRigidRotations()
 {
+	// read the base rotations to the rigid body sub-particles
 	graphSimulation.each_node_object<FFlexBaseRotation>([&](FGraphNode& node, FFlexBaseRotation& baseRotation) {
 		FQuat rotation = _rigids->bodyRotations[baseRotation.flexRigidBodyIndex];
 
 		node.orientation = rotation * baseRotation.rotation;
 	});
 
+	// read our flex rigid body object position and orientation
 	graphSimulation.each_node_object<FFlexRigidBodyObject>([&](FGraphNode& node, FFlexRigidBodyObject& rigid) {
 		node.position = _rigids->bodyTranslations[rigid.flexRigidIndex];
 		node.orientation = _rigids->bodyRotations[rigid.flexRigidIndex];
+	});
+
+	// read FFlexRigidMembers
+	graphSimulation.each_node_object<FFlexRigidMember>([&](FGraphNode& node, FFlexRigidMember& member) {
+		FQuat rotation = _rigids->bodyRotations[member.flexRigidIndex];
+		FVector position = _rigids->bodyTranslations[member.flexRigidIndex];
+
+		node.position = rotation.RotateVector(member.relativeOffset) + position;
+		node.orientation = rotation * member.relativeOrientation;
 	});
 }
 
@@ -1401,6 +1409,8 @@ auto FFlexSimulation::_loadMesh( UStaticMeshComponent * meshComponent ) -> void
 
 void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType type )
 {
+	const static ComponentType FFlexRigidMemberType = componentType<FFlexRigidMember>();
+
 	if (type == _FFlexParticleObjectType)
 	{
 		_flexParticlesToAdd.insert(handle);
@@ -1416,6 +1426,10 @@ void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType typ
 		particle.channel = onSurface ? eNvFlexPhaseShapeChannel1 : eNvFlexPhaseShapeChannel0;
 	}
 	else if (type == _FFlexRigidObjectType)
+	{
+		_flexRigidsDirty = true;
+	}
+	else if (type == FFlexRigidMemberType)
 	{
 		_flexRigidsDirty = true;
 	}
@@ -2059,6 +2073,7 @@ FVector FFlexRigidBodyObject::calculateCenterOfMass(FGraph& graph)
 	FGraphNode& node = graph.node(nodeHandle());
 
 	auto rigidEdgeStorage = graph.edgeStorage<FFlexRigidBodyConnection>();
+	auto& particles = graph.componentStorage<FFlexParticleObject>();
 
 	FVector sum = FVector::ZeroVector;
 
@@ -2073,6 +2088,8 @@ FVector FFlexRigidBodyObject::calculateCenterOfMass(FGraph& graph)
 
 		auto other = graph.edge(edgeHandle).other(node.handle());
 
+		if (!particles.componentPtrForNode(other)) continue;
+
 		sum += other.node(graph).position;
 
 		count++;
@@ -2081,6 +2098,65 @@ FVector FFlexRigidBodyObject::calculateCenterOfMass(FGraph& graph)
 	if (count) sum /= float(count);
 
 	return sum;
+}
+
+void FFlexRigidBodyObject::applyRotationTranslation(const FQuat& rotation, const FVector& translation, FGraph& graph)
+{
+	FGraphNode& node = graph.node(nodeHandle());
+
+	const FVector pr = node.position; // original node position
+	const FVector pr_ = pr + translation; // new node position
+
+	// cleaner to read, these will be inlined by the compiler
+	auto translate = [rotation, pr, pr_](FVector p) -> FVector {
+		// find the original direction vector, rotate and add it to the new position
+		return rotation.RotateVector(p - pr) + pr_;
+	};
+
+	auto rotate = [rotation](FQuat q) -> FQuat {
+		return rotation * q;
+	};
+
+	node.position = translate(node.position);
+	node.orientation = rotate(node.orientation);
+
+	nodeHandle().node(graph).each<FFlexRigidBodyConnection>(graph, [&](FGraphNodeHandle subRigidHandle, FFlexRigidBodyConnection& rigidConnection) {
+		FGraphNode& subNode = subRigidHandle(graph);
+
+		subNode.position = translate(subNode.position);
+		subNode.orientation = rotate(subNode.orientation);
+	});
+}
+
+// So, passing FQuat by value can cause a compiler bug: https://answers.unrealengine.com/questions/125784/doing-a-fquatfquat-when-one-of-them-is-a-parameter.html
+// The quat passed in is not aligned, and things blow up in the SSE instructions.
+void FFlexRigidBodyObject::applyRotationTranslationInferVelocity(const FQuat& rotation, const FVector& translation, FGraph& graph)
+{
+	auto& velocities = graph.componentStorage<FVelocityGraphObject>();
+
+	FGraphNode& node = graph.node(nodeHandle());
+
+	const FVector pr = node.position; // original node position
+	const FVector pr_ = pr + translation; // new node position
+
+
+	node.position = pr_;
+	node.orientation = rotation * node.orientation;
+
+	if (FVelocityGraphObject * nodeVelocity = velocities.componentPtrForNode(nodeHandle())) nodeVelocity->linearVelocity += translation;
+
+	nodeHandle().node(graph).each<FFlexRigidBodyConnection>(graph, [&](FGraphNodeHandle subRigidHandle, FFlexRigidBodyConnection& rigidConnection) {
+		FGraphNode& subNode = subRigidHandle(graph);
+
+		subNode.position = rotation.RotateVector(subNode.position - pr) + pr_;
+
+		FQuat qsub = rotation * subNode.orientation;
+		subNode.orientation = qsub;
+
+		FVelocityGraphObject * velocity = velocities.componentPtrForNode(subRigidHandle);
+
+		if( velocity ) velocity->linearVelocity += translation;
+	});
 }
 
 FFlexRigidBodyObject& FFlexRigidBodyObject::createRigidBody(FGraph& graph, TArray<FGraphNodeHandle>& particlesInBody, FGraphNodeHandle rigidNodeHandle)

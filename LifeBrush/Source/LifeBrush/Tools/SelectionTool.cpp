@@ -169,13 +169,9 @@ void USelectionTool::_tickMultiSelection(float dt, UPrimitiveComponent * hand)
 			bool inSet = false;
 			_selection->Add(elementActor, &inSet);
 
-			UStaticMeshComponent * mesh = elementActor->FindComponentByClass<UStaticMeshComponent>();
 
-			// we visualize selection through a post-process effect on the custom depth
-			if (mesh && !inSet)
-			{
-				mesh->SetRenderCustomDepth(true);
-			}
+			if (!inSet)
+				elementActor->showSelectionOutline();
 		}
 		else if (selectionMode == ESelectionToolMode::Removing)
 		{
@@ -183,12 +179,8 @@ void USelectionTool::_tickMultiSelection(float dt, UPrimitiveComponent * hand)
 
 			_selection->Remove(elementActor);
 
-			UStaticMeshComponent * mesh = elementActor->FindComponentByClass<UStaticMeshComponent>();
-
-			if (mesh && wasInSet)
-			{
-				mesh->SetRenderCustomDepth(false);
-			}
+			if (wasInSet)
+				elementActor->hideSelectionOutline();
 		}
 	}
 }
@@ -358,12 +350,7 @@ void USelectionTool::_hideSelection( TSet<AElementActor*>& selected )
 {
 	for(AElementActor * elementActor : selected)
 	{
-		UStaticMeshComponent * mesh = elementActor->FindComponentByClass<UStaticMeshComponent>();
-
-		if( mesh )
-		{
-			mesh->SetRenderCustomDepth( false );
-		}
+		elementActor->hideSelectionOutline();
 	}
 }
 
@@ -371,12 +358,7 @@ void USelectionTool::_showSelection( TSet<AElementActor*>& selected )
 {
 	for(AElementActor * elementActor : selected)
 	{
-		UStaticMeshComponent * mesh = elementActor->FindComponentByClass<UStaticMeshComponent>();
-
-		if( mesh )
-		{
-			mesh->SetRenderCustomDepth( true );
-		}
+		elementActor->showSelectionOutline();
 	}
 }
 

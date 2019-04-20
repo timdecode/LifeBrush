@@ -26,6 +26,7 @@ class UStringGeneratorTool;
 class UCollagenGeneratorTool;
 class USwarmGeneratorTool;
 class URegionGrowing_GenerativeBrushTool;
+class UExemplarInspectorTool;
 struct FFlexSimulation;
 
 UENUM(BlueprintType)
@@ -112,6 +113,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor")
 	UPhysicalInteractionTool * physicalInteractionTool;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor")
+	UExemplarInspectorTool * exemplarInspectorTool;
 
 public:
 	UFUNCTION(BlueprintCallable, Category = Generation)
@@ -240,10 +244,17 @@ protected:
 	void rightController_touchEnd();
 	FVector2D _getRightTouchPoint();
 
-	void rightController_upFace();
-	void rightController_downFace();
-	void rightController_leftFace();
-	void rightController_rightFace();
+	void rightController_faceUp_pressed();
+	void rightController_faceUp_released();
+
+	void rightController_faceDown_pressed();
+	void rightController_faceDown_released();
+
+	void rightController_faceLeft_pressed();
+	void rightController_faceLeft_released();
+
+	void rightController_faceRight_pressed();
+	void rightController_faceRight_released();
 
 	void _startSimulation();
 	void _endSimulation();

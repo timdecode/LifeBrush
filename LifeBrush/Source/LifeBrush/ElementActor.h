@@ -9,6 +9,8 @@
 
 #include "NeighbourhoodParameters.h"
 
+#include "AggregateProxyComponent.h"
+
 #include "ElementActor.generated.h"
 
 class UGraphSimulationManager;
@@ -67,6 +69,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RG")
 	ESpaceMode spaceModeHint = ESpaceMode::Volume;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RG")
+	EAggregateProxyParticleOrMember particleOrMember = EAggregateProxyParticleOrMember::Particle;
+
 public:	
 	// Sets default values for this actor's properties
 	AElementActor();
@@ -80,6 +85,9 @@ public:
 	void writeToElement(ElementTuple& element, FGraph& graph);
 	void readFromElement( ElementTuple& element, FGraph& graph);
 	void readFromActor( AElementActor* elementActor );
+
+	void showSelectionOutline();
+	void hideSelectionOutline();
 
 protected:
 	void _loadAggregate(FGraphNodeHandle elementNode, FGraph& graph);

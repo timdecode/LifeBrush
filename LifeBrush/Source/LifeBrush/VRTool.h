@@ -131,9 +131,19 @@ public:
 
 	}
 
+	virtual void faceRight_pressed()
+	{
+
+	}
+
 	// Face Left
 	// -----------------------------
 	virtual void faceLeft_released()
+	{
+
+	}
+
+	virtual void faceLeft_pressed()
 	{
 
 	}

@@ -7,6 +7,13 @@
 
 #include "AggregateProxyComponent.generated.h"
 
+UENUM(BlueprintType)
+enum class EAggregateProxyParticleOrMember : uint8
+{
+	Particle UMETA(DisplayName = "Particle"),
+	Member UMETA(DisplayName = "Member"),
+};
+
 UCLASS(ClassGroup = (LifeBrush), meta = (BlueprintSpawnableComponent))
 class LIFEBRUSH_API UAggregateProxyComponent : public UStaticMeshComponent
 {
@@ -15,4 +22,7 @@ class LIFEBRUSH_API UAggregateProxyComponent : public UStaticMeshComponent
 public:
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Agent Library" )
 	TArray<FTimStructBox> graphObjects;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Agent Library")
+	EAggregateProxyParticleOrMember particleOrMember = EAggregateProxyParticleOrMember::Particle;
 };

@@ -5,6 +5,7 @@
 #include "WidgetComponent.h"
 #include "VRInterface/CollectionSpace.h"
 #include "RegionGrowingComponent.h"
+#include "ElementEditor/DiscreteElementEditorComponent.h"
 #include "GrabTool.h"
 #include "ElementActor.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -71,10 +72,10 @@ UPrimitiveComponent * AMeshCollectionSpaceActor::primitiveCellAt_Implementation(
 
 void AMeshCollectionSpaceActor::didGrab_Implementation(int32 itemAtIndex, FTransform grabTransform, UPrimitiveComponent * grabbedCell, FTransform cellTransform, FBox cellBounds)
 {
-	if (!meshTool)
+	if (!delegate)
 		return;
 
-	meshTool->didGrab(collectionSpace, itemAtIndex, grabTransform, grabbedCell, cellTransform, cellBounds);
+	delegate->didGrabItem(collectionSpace, itemAtIndex, grabTransform, grabbedCell, cellTransform, cellBounds);
 }
 
 void AMeshCollectionSpaceActor::BeginPlay()
@@ -93,19 +94,23 @@ void AMeshCollectionSpaceActor::BeginPlay()
 }
 
 
-void UMeshCollectionTool::focused()
+void UMeshCollectionTool::init(FRGC_UToolInitProperties& initProperties, UCameraComponent * camera)
 {
-	if (_collectionSpaceActor || !meshCollectionClass || !_regionGrowingComponent)
-		return;
+	UTool::init(initProperties);
 
-	_spawnCollectionSpaceActor();
-
-	// register overlap listeners
-	_rightSelectionPoint->OnComponentBeginOverlap.AddDynamic(this, &UMeshCollectionTool::OnRightSelectionPointOverlapBegin);
-	_rightSelectionPoint->OnComponentEndOverlap.AddDynamic(this, &UMeshCollectionTool::OnRightSelectionPointOverlapEnd);
+	_elementEditor = initProperties.editor;
+	_camera = camera;
 }
 
-void UMeshCollectionTool::_spawnCollectionSpaceActor()
+void UMeshCollectionTool::focused()
+{
+	if (_collectionSpaceActor || !meshCollectionClass || !_elementEditor)
+		return;
+
+	spawnCollectionSpaceActor();
+}
+
+void UMeshCollectionTool::spawnCollectionSpaceActor()
 {
 	if (_collectionSpaceActor || !meshCollectionClass || !_camera)
 		return;
@@ -120,16 +125,13 @@ void UMeshCollectionTool::_spawnCollectionSpaceActor()
 	FTransform transform(rotator.Quaternion(), handLocation, FVector(1.0f));
 
 	_collectionSpaceActor = world->SpawnActor<AMeshCollectionSpaceActor>(meshCollectionClass, transform);
-	_collectionSpaceActor->meshTool = this;
+	_collectionSpaceActor->delegate = this;
 
 	_collectionSpace = _collectionSpaceActor->FindComponentByClass<UCollectionSpace>();
 }
 
 void UMeshCollectionTool::loseFocus()
 {
-	_rightSelectionPoint->OnComponentBeginOverlap.RemoveDynamic(this, &UMeshCollectionTool::OnRightSelectionPointOverlapBegin);
-	_rightSelectionPoint->OnComponentEndOverlap.RemoveDynamic(this, &UMeshCollectionTool::OnRightSelectionPointOverlapEnd);
-
 }
 
 void UMeshCollectionTool::oneHandStart(UPrimitiveComponent * hand)
@@ -241,17 +243,8 @@ void UMeshCollectionTool::faceUp_released(USceneComponent * interactionPoint /* 
 	}
 }
 
-void UMeshCollectionTool::OnRightSelectionPointOverlapBegin(class UPrimitiveComponent* ourComponent, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult)
-{
 
-}
-
-void UMeshCollectionTool::OnRightSelectionPointOverlapEnd(class UPrimitiveComponent* ourComponent, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-
-}
-
-void UMeshCollectionTool::didGrab(UCollectionSpace * collectionSpace, int32 itemAtIndex, FTransform grabTransform, UPrimitiveComponent * grabbedCell, FTransform cellTransform, FBox cellBounds)
+void UMeshCollectionTool::didGrabItem(UCollectionSpace * collectionSpace, int32 itemAtIndex, FTransform grabTransform, UPrimitiveComponent * grabbedCell, FTransform cellTransform, FBox cellBounds)
 {
 	if (_draggingCell)
 	{
@@ -267,7 +260,7 @@ void UMeshCollectionTool::didGrab(UCollectionSpace * collectionSpace, int32 item
 
 	UStaticMeshComponent * asMesh = Cast<UStaticMeshComponent>(grabbedCell);
 
-	UWorld * world = _regionGrowingComponent->GetWorld();
+	UWorld * world = _elementEditor->GetWorld();
 
 
 	FVector location = _selectionA->GetComponentLocation();
@@ -324,7 +317,7 @@ void UMeshCollectionTool::didPlace_Implementation(UGrabTool * grabTool, AActor *
 	_draggingActor = nullptr;
 	_draggingCell = nullptr;
 
-	AActor * exemplar = _regionGrowingComponent->exemplar;
+	AActor * exemplar = _elementEditor->exemplarActor();
 
 	if (!exemplar)
 	{
@@ -333,7 +326,7 @@ void UMeshCollectionTool::didPlace_Implementation(UGrabTool * grabTool, AActor *
 	}
 
 	// create a new element actor based on the mesh
-	UWorld * world = _regionGrowingComponent->GetWorld();
+	UWorld * world = _elementEditor->GetWorld();
 
 	FTransform transform = draggingActor->GetTransform();
 

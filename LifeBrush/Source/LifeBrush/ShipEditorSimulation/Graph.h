@@ -781,6 +781,54 @@ struct TypedComponentStorage : FComponentStorage
 	{
 		return at(i);
 	}
+
+	void swap(size_t objectIndexA, size_t objectIndexB)
+	{
+		Pool<TComponent>& typedPool = static_cast<Pool<TComponent>&>(pool);
+
+		auto& handleA = _objectIndexToElement[objectIndexA];
+		auto& handleB = _objectIndexToElement[objectIndexB];
+
+		std::swap(handleA, handleB);
+		std::swap(*typedPool.get(objectIndexA), *typedPool.get(objectIndexB));
+	}
+
+	// predicate(TComponent&, TComponent&): Sorts the connection objects relative to the predicate.
+	template<typename TSortPredicate>
+	void sort(TSortPredicate predicate)
+	{
+		// Inspired by: sparse_set::sort in https://github.com/skypjack/entt/blob/master/src/entt/entity/sparse_set.hpp
+
+		Pool<TComponent>& typedPool = static_cast<Pool<TComponent>&>(pool);
+
+		// we'll sort based on the values of the typed pool into a separate sorted index
+		std::vector<size_t> indices(_size);
+		std::iota(indices.begin(), indices.end(), 0);
+
+		std::sort(indices.begin(), indices.end(), [&typedPool, &predicate](size_t a, size_t b)
+		{
+			return predicate(*typedPool.get(a), *typedPool.get(b));
+		});
+
+		// apply the sorted indices to our containers
+		for (size_t i = 0, last = indices.size(); i < last; ++i)
+		{
+			auto current = i;
+			auto next = indices[current];
+
+			while (current != next)
+			{
+				const auto lhs = indices[current];
+				const auto rhs = indices[next];
+
+				swap(lhs, rhs);
+
+				indices[current] = current;
+				current = next;
+				next = indices[current];
+			}
+		}
+	}
 };
 
 USTRUCT( BlueprintType )

@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "CollectionSpace.h"
+#include <../Plugins/Experimental/AlembicImporter/Source/ThirdParty/Alembic/Deploy/include/OpenEXR/halfLimits.h>
 
 
 UInteractionSpace::UInteractionSpace()
@@ -99,11 +100,56 @@ void UCollectionSpace::reloadData()
 	_layout();
 }
 
+FVector UCollectionSpace::nearest(UPrimitiveComponent * interactionPoint)
+{
+	FVector localPoint = this->GetComponentTransform().InverseTransformPosition(interactionPoint->GetComponentLocation());
+
+	FVector nearestPoint = FVector::ZeroVector;
+	float nearestDistanceSqrd = std::numeric_limits<float>::max();
+
+	auto updateNearest = [&](FBox& bounds) {
+		if (bounds.IsInside(localPoint))
+		{
+			FVector point = bounds.GetClosestPointTo(localPoint);
+
+			float distSqrd = FVector::DistSquared(localPoint, point);
+
+			if (distSqrd < nearestDistanceSqrd)
+			{
+				nearestDistanceSqrd = distSqrd;
+				nearestPoint = point;
+			}
+		}
+	};
+
+	// check if we overlap one of the items
+	for (int i = 0; i < _localBounds.Num(); ++i)
+	{
+		FBox& bounds = _localBounds[i];
+
+		updateNearest(bounds);
+	}
+
+	{
+		FTransform toLocal = this->GetComponentTransform().Inverse();
+
+		FBox bounds = _boundsMesh->Bounds.GetBox().TransformBy(toLocal);
+
+		updateNearest(bounds);
+
+	}
+
+	return GetComponentTransform().TransformPosition(nearestPoint);
+}
+
 void UCollectionSpace::begin_oneHand(UPrimitiveComponent * interactionPoint)
 {
 	FVector localPoint = this->GetComponentTransform().InverseTransformPosition(interactionPoint->GetComponentLocation());
 
-	_interactionMode = InteractionMode::Pan;
+	if (_bounds.IsInside(localPoint))
+		_interactionMode = InteractionMode::Pan;
+	else
+		_interactionMode = InteractionMode::None;
 
 	// check if we overlap one of the items
 	for (int i = 0; i < _localBounds.Num(); ++i)

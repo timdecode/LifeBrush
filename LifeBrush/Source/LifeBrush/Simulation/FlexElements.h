@@ -37,7 +37,7 @@ struct LIFEBRUSH_API FFlexRigidBodyObject : public FGraphObject
 	GENERATED_BODY()
 
 public:
-	// Internel index of the flex rigid body
+	// Internal index of the flex rigid body.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flex")
 	int32 flexRigidIndex = 0;
 
@@ -71,9 +71,31 @@ public:
 	// Finds the centre of mass, this doesn't write to anything.
 	FVector calculateCenterOfMass(FGraph& graph);
 
+	// Rotates the rigid body (and the linked nodes) around this node and then translates it.
+	// @param[in] rotation The delta rotation to apply. 
+	// @param[in] translation The delta translation to apply.
+	// @param[in] graph The graph containing this object.
+	void applyRotationTranslation(const FQuat& rotation, const FVector& translation, FGraph& graph);
+
+	void applyRotationTranslationInferVelocity(const FQuat& rotation, const FVector& translation, FGraph& graph);
+
 
 protected:
 	static void _ensureFlexParticle(FGraphNode& node, FGraph& graph);
+};
+
+// Allows a node to be a member of a flex rigid object, but without a particle. The position of the node is updated
+// relative to the position and orientation of the connected FFlexRigidBodyObject. Connect with a FFlexRigidBodyConnection.
+USTRUCT(BlueprintType)
+struct LIFEBRUSH_API FFlexRigidMember : public FGraphObject
+{
+	GENERATED_BODY()
+public:
+	// These are transients, computed at load or component-add
+	FVector relativeOffset;
+	FQuat relativeOrientation;
+
+	int32 flexRigidIndex = 0;
 };
 
 // Added to each node in a rigid body, to store the original, base rotation of the nodes.

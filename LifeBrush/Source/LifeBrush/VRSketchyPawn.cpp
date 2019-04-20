@@ -14,9 +14,12 @@
 #include "Tools/RegionGrowingTool.h"
 #include "Tools/DigTool.h"
 #include "Tools/MeshCollectionTool.h"
+#include "Tools/ExemplarInspectorTool.h"
+
 #include "Visualization/EventVisualizationTool.h"
 
 #include "ElementEditor/DiscreteElementEditorComponent.h"
+
 
 #include "VRSketchyPawn.h"
 
@@ -74,6 +77,7 @@ AVRSketchyPawn::AVRSketchyPawn()
 	eventVisualizationTool = CreateDefaultSubobject<UEventVisualizationTool>( TEXT("EventVisualizationTool") );
 	agentPathlineTool = CreateDefaultSubobject<UAgentPathlineTool>(TEXT("AgentPathlineTool"));
 	physicalInteractionTool = CreateDefaultSubobject<UPhysicalInteractionTool>(TEXT("PhysicalInteractionTool"));
+	exemplarInspectorTool = CreateDefaultSubobject<UExemplarInspectorTool>(TEXT("ExemplarInspectorTool"));
 
 	// necessary for VR 
 	BaseEyeHeight = 0.0f;
@@ -106,7 +110,8 @@ void AVRSketchyPawn::BeginPlay()
 	if (flexSimulationActor)
 	{
 		flexComponent = flexSimulationActor->FindComponentByClass<UFlexSimulationComponent>();
-		flexSimulation = flexComponent->flexSimulation();
+	
+		if( flexComponent ) flexSimulation = flexComponent->flexSimulation();
 	}
 
 	_initTools();
@@ -155,10 +160,15 @@ void AVRSketchyPawn::SetupPlayerInputComponent(class UInputComponent* InputCompo
 	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton4, IE_Released, this, &AVRSketchyPawn::leftController_leftFace );
 	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton2, IE_Released, this, &AVRSketchyPawn::leftController_rightFace );
 
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton1, IE_Released, this, &AVRSketchyPawn::rightController_upFace );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton3, IE_Released, this, &AVRSketchyPawn::rightController_downFace );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton4, IE_Released, this, &AVRSketchyPawn::rightController_leftFace );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton2, IE_Released, this, &AVRSketchyPawn::rightController_rightFace );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton1, IE_Released, this, &AVRSketchyPawn::rightController_faceUp_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton3, IE_Released, this, &AVRSketchyPawn::rightController_faceDown_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton4, IE_Released, this, &AVRSketchyPawn::rightController_faceLeft_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton2, IE_Released, this, &AVRSketchyPawn::rightController_faceRight_released );
+
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton1, IE_Pressed, this, &AVRSketchyPawn::rightController_faceUp_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton3, IE_Pressed, this, &AVRSketchyPawn::rightController_faceDown_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton4, IE_Pressed, this, &AVRSketchyPawn::rightController_faceLeft_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton2, IE_Pressed, this, &AVRSketchyPawn::rightController_faceRight_pressed);
 
 	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Pressed, this, &AVRSketchyPawn::leftController_touchStart );
 	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Released, this, &AVRSketchyPawn::leftController_touchEnd );
@@ -249,6 +259,8 @@ void AVRSketchyPawn::_initTools()
 	digTool->init(initProperties);
 
 	meshCollectionTool->init(initProperties, camera);
+
+	exemplarInspectorTool->init(initProperties, editorComponent,  camera);
 
 	eventVisualizationTool->init(initProperties, flexSimulation, camera);
 
@@ -470,7 +482,15 @@ void AVRSketchyPawn::leftController_rightFace()
 }
 
 
-void AVRSketchyPawn::rightController_upFace()
+void AVRSketchyPawn::rightController_faceUp_pressed()
+{
+	if (!_currentTool)
+		return;
+
+	_currentTool->faceUp_pressed();
+}
+
+void AVRSketchyPawn::rightController_faceUp_released()
 {
 	if(!_currentTool)
 		return;
@@ -478,29 +498,66 @@ void AVRSketchyPawn::rightController_upFace()
 	_currentTool->faceUp_released(rightInteractionPoint);
 }
 
-void AVRSketchyPawn::rightController_downFace()
+
+
+
+
+
+void AVRSketchyPawn::rightController_faceDown_pressed()
 {
-	if(!_currentTool)
+	if (!_currentTool)
+		return;
+
+	_currentTool->faceDown_pressed();
+}
+
+void AVRSketchyPawn::rightController_faceDown_released()
+{
+	if (!_currentTool)
 		return;
 
 	_currentTool->faceDown_released();
 }
 
-void AVRSketchyPawn::rightController_leftFace()
+
+
+
+void AVRSketchyPawn::rightController_faceLeft_pressed()
 {
-	if(!_currentTool)
+	if (!_currentTool)
+		return;
+
+	_currentTool->faceLeft_pressed();
+}
+
+void AVRSketchyPawn::rightController_faceLeft_released()
+{
+	if (!_currentTool)
 		return;
 
 	_currentTool->faceLeft_released();
 }
 
-void AVRSketchyPawn::rightController_rightFace()
+
+
+
+void AVRSketchyPawn::rightController_faceRight_pressed()
 {
 	if(!_currentTool)
 		return;
 
+	_currentTool->faceRight_pressed();
+}
+
+void AVRSketchyPawn::rightController_faceRight_released()
+{
+	if (!_currentTool)
+		return;
+
 	_currentTool->faceRight_released();
 }
+
+
 
 void AVRSketchyPawn::_initSimulation_oneTime()
 {

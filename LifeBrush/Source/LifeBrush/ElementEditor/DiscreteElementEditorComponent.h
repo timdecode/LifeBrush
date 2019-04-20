@@ -78,6 +78,8 @@ public:
 	template<typename GeneratorType>
 	GeneratorType* generator();
 
+	AActor * exemplarActor();
+
 	void stop();
 	void start();
 

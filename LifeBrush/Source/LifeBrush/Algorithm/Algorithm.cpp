@@ -376,7 +376,6 @@ void Algorithm::_initializeOutput(PositionFace& position, AABB& limits, Algorith
 FGraphNodeHandle Algorithm::_copyExemplarToOutput(FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection)
 {
 	FMLAggregateNO * aggregate = sourceGraph.componentPtr<FMLAggregateNO>(sourceNodeHandle);
-	FFlexRigidBodyObject * rigid = sourceGraph.componentPtr<FFlexRigidBodyObject>(sourceNodeHandle);
 
 	if (aggregate)
 	{

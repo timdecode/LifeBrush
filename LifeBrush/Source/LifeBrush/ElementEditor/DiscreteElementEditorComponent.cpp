@@ -16,6 +16,7 @@
 
 #include "RegionGrowingComponent.h"
 #include "VolumeComponent.h"
+#include "RegionGrowingGenerator.h"
 
 UDiscreteElementEditorComponent::UDiscreteElementEditorComponent()
 {
@@ -163,6 +164,14 @@ void UDiscreteElementEditorComponent::setCurrentGenerator(UElementGenerator * ge
 UElementGenerator* UDiscreteElementEditorComponent::currentGenerator()
 {
 	return _generator;
+}
+
+AActor * UDiscreteElementEditorComponent::exemplarActor()
+{
+	if (URegionGrowingGenerator * rgc = generator<URegionGrowingGenerator>())
+		return rgc->exemplar;
+	else
+		return nullptr;
 }
 
 void UDiscreteElementEditorComponent::stop()
