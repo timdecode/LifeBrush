@@ -1696,6 +1696,7 @@ void UATPSynthaseSimulation::flexTick(
 )
 {
 	auto& synthases = graph->componentStorage<FATPSynthaseGraphObject>();
+	auto& hydrogens = graph->componentStorage<FHydrogenGraphObject>();
 
 	const int stride = maxParticles;
 
@@ -1731,14 +1732,40 @@ void UATPSynthaseSimulation::flexTick(
 			float nearestSqrdDistance = std::numeric_limits<float>::max();
 			FGraphNodeHandle nearestHydrogen;
 
+			int aboveCount = 0;
+			int belowCount = 0;
+
+			for (int ni = 0; ni < neighborCount; ++ni)
+			{
+				int neighborIndex = internalToAPI[neighbourIndices[ni*stride + nodeIndex_flexInternal]];
+
+				FGraphNodeHandle handle(neighborIndex);
+
+				if (FHydrogenGraphObject * hydrogen = hydrogens.componentPtrForNode(handle))
+				{
+					FGraphNode& node = graph->node(handle);
+
+					FVector direction = node.position - atpSynthaseNode.position;
+
+					bool isAbove = FVector::DotProduct(direction, atpSynthaseUp) > 0;
+
+					aboveCount += isAbove ? 1 : 0;
+					belowCount += isAbove ? 0 : 1;
+				}
+			}
+
 			for(int ni = 0; ni < neighborCount; ++ni)
 			{
 				int neighborIndex = internalToAPI[neighbourIndices[ ni*stride + nodeIndex_flexInternal ]];
 
 				FGraphNode& hydrogenNode = graph->node( neighborIndex );
 
-				if(!hydrogenNode.hasComponent<FHydrogenGraphObject>())
-					continue;
+				if( hydrogens.componentPtrForNode(hydrogenNode.handle()) == nullptr) continue;
+
+				// check for a hydrogen gradient
+				// this is naive, it just checks the local neighborhood
+				// we want about 50% more hydrogen below the synthase than above it (the exit point)
+				if (aboveCount * 1.5 > belowCount) continue;
 
 				FVector direction = hydrogenNode.position - atpSynthaseNode.position;
 
