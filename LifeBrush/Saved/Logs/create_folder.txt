@@ -1,0 +1,1 @@
+If we don't put this file here, Git won't create the folder and Unreal will complain that the folder doesn't exist.
