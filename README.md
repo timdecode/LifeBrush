@@ -7,6 +7,18 @@ The C++ agent framework is based on an Entity-Component-System that we developed
 
 This toolkit was orignally described in a conference paper in 2018, "LifeBrush: Painting interactive agent-based simulations" by Timothy Davison, Faramarz Samavati and Christian Jacob (the bibtex is below). The version here on GitHub is a significant evolution of that paper.
 
+# Build instructions
+
+Clone the repository and open the LifeBrush.uproject with Unreal Engine 4.18.
+
+Requirements:
+- Unreal Engine 4.18
+- Windows 10
+- At least an Nvidia GTX 1080
+- HTC Vive
+
+I haven't tested with an Oculus Rift, I'm pretty sure it won't work out of the box. 
+
 # License and Copyright 
 
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
