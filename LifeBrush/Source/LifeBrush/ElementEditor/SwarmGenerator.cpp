@@ -46,6 +46,8 @@ void USwarmGenerator::detach()
 	UMeshSimulation * meshSim = _simulationManager->registerSimulation<UMeshSimulation>();
 
 	meshSim->detach();
+
+	_simulationManager->detachSimulations();
 }
 
 void USwarmGenerator::flexTick(
@@ -605,7 +607,7 @@ void USwarmSimulation::_tickBoidSeekers(float deltaT)
 			// bind
 			if (distSqrd < bindingDistSqrd)
 			{
-				graph->connectNodes<FFlexConnection>(seekerNode.handle(), neighbourNode.handle(), radius_segment * 2.0f, 0.9f);
+				graph->connectNodes<FFlexConnection>(seekerNode.handle(), neighbourNode.handle(), radius_segment * 2.0f, 0.5f);
 
 				seekerNode.removeComponent<FBoidSeeker>(*graph);
 				neighbourNode.removeComponent<FBoidSeeker>(*graph);
