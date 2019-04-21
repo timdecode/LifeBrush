@@ -37,7 +37,7 @@ enum class ESketchyInteractionMode : uint8
 };
 
 UCLASS( DefaultToInstanced )
-class LIFEBRUSH_API AVRSketchyPawn : public APawn
+class LIFEBRUSH_API AVRSketchyPawn : public APawn, public UToolDelegate
 {
 	GENERATED_BODY()
 
@@ -145,17 +145,30 @@ public:
 	// --------------------
 	// Simulation snapshots
 	// --------------------
+	// Experimental: Snapshot the simulation state, to later be restored with restoreSimulation. This stores
+	// the snapshot in memory, not on disk.
 	UFUNCTION(BlueprintCallable, Category = Generation)
 	void snapshotSimulation();
 
+	// Restore a previously snapshotted simulation.
 	UFUNCTION(BlueprintCallable, Category = Generation)
 	void restoreSimulation();
 
+	UFUNCTION(BlueprintNativeEvent)
+	void ShowToolSelectPopup();
+	virtual void ShowToolSelectPopup_Implementation();
+
+	// Snapshots the complete state of the simulation back to the editor world.
 	UFUNCTION(BlueprintCallable, Category = Generation)
 	void snapshotSimulationStateToEditor();
 
+	// Snapshots the runtime-mesh component of the simulation to the passed actor. This is
+	// useful for capturing a chunked-volume mesh created with the UDigTool.
 	void snapshotMeshInterfaceRuntimeMeshComponentToActor(AActor* actor);
 
+	// Snapshots just the graphics of a simulation, such as RMCs and the ISMCs, to the editor
+	// world. This is useful for creating fancy screen shots later on. The simulation state is
+	// not capture.
 	UFUNCTION(BlueprintCallable, Category = Generation)
 	void snapshotSimulationGraphicsToEditor();
 
@@ -225,6 +238,7 @@ protected:
 
 	FString _actorLabelByDate(FString baseName);
 
+
 	void takeGraphicalSnapshotAndHighResShot();
 	void takeHighReshShot();
 	void snapshotElementDomain();
@@ -256,11 +270,16 @@ protected:
 	void rightController_faceRight_pressed();
 	void rightController_faceRight_released();
 
+	void rightController_shoulder_released();
+
 	void _startSimulation();
 	void _endSimulation();
 
 	void _startCurrentToolLeftTrigger();
 	void _startCurrentToolRightTrigger();
 
+
+public: // UTool delegate
+	virtual void cedeFocus(UTool * tool) override;
 
 };

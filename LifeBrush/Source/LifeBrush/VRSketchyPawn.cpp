@@ -192,7 +192,7 @@ void AVRSketchyPawn::SetupPlayerInputComponent(class UInputComponent* InputCompo
 	InputComponent->BindKey( EKeys::MotionController_Right_Grip1, IE_Released, this, &AVRSketchyPawn::spiderManRightEnd );
 
 	InputComponent->BindKey( EKeys::MotionController_Left_Shoulder, IE_Released, this, &AVRSketchyPawn::takeGraphicalSnapshotAndHighResShot );
-	InputComponent->BindKey( EKeys::MotionController_Right_Shoulder, IE_Released, this, &AVRSketchyPawn::takeGraphicalSnapshotAndHighResShot );
+	InputComponent->BindKey( EKeys::MotionController_Right_Shoulder, IE_Released, this, &AVRSketchyPawn::rightController_shoulder_released );
 }
 
 
@@ -232,6 +232,7 @@ void AVRSketchyPawn::_initTools()
 	initProperties.editor = editorComponent;
 	initProperties.leftSelectionPoint = leftInteractionPoint;
 	initProperties.rightSelectionPoint = rightInteractionPoint;
+	initProperties.toolDelegate = this;
 	initProperties.targetComponent = regionGrowingRoot;
 	initProperties.regionGrowingComponent = regionGrowingComponent;
 	initProperties.developerMode = developerMode;
@@ -256,7 +257,7 @@ void AVRSketchyPawn::_initTools()
 	
 	selectionTool->init(initProperties);
 
-	digTool->init(initProperties);
+	digTool->init(initProperties, camera);
 
 	meshCollectionTool->init(initProperties, camera);
 
@@ -498,6 +499,12 @@ void AVRSketchyPawn::rightController_faceUp_released()
 	_currentTool->faceUp_released(rightInteractionPoint);
 }
 
+void AVRSketchyPawn::rightController_shoulder_released()
+{
+	if (!_currentTool || !_currentTool->consume_rightShoulder_pressed())
+		ShowToolSelectPopup();
+}
+
 
 
 
@@ -564,22 +571,6 @@ void AVRSketchyPawn::_initSimulation_oneTime()
 	if (_didInitSimulation)
 		return;
 
-	//if (regionGrowingComponent)
-	//{
-	//	if (!regionGrowingComponent->isMeshInterfaceReady())
-	//		return;
-
-	//	_initSimulationBounds();
-
-	//	// it's already in world space
-	//	FTransform meshInterfaceToWorld = FTransform::Identity;
-
-	//	flexComponent->init(regionGrowingComponent->staticMeshComponent(), regionGrowingComponent->meshInterface(), meshInterfaceToWorld, camera);
-
-
-	//	_didInitSimulation = true;
-	//}
-
 	if (flexComponent && editorComponent)
 	{
 		_initSimulationBounds();
@@ -589,10 +580,6 @@ void AVRSketchyPawn::_initSimulation_oneTime()
 
 		flexComponent->init(editorComponent->context->meshInterface, meshInterfaceToWorld, camera);
 	}
-
-
-
-
 }
 
 void AVRSketchyPawn::_initSimulationBounds()
@@ -698,6 +685,17 @@ void AVRSketchyPawn::_startCurrentToolRightTrigger()
 	if(_rightTriggerDown && _lastRightTriggerValue > 0.1f)
 	{
 		_currentTool->rightStart();
+	}
+}
+
+void AVRSketchyPawn::cedeFocus(UTool * tool)
+{
+	if (tool == digTool)
+	{
+		_currentTool->loseFocus();
+		_currentTool = nullptr;
+
+		ShowToolSelectPopup();
 	}
 }
 
@@ -848,4 +846,7 @@ void AVRSketchyPawn::restoreSimulation()
 	_snapshot.restore(flexSimulation->graphSimulation);
 }
 
+void AVRSketchyPawn::ShowToolSelectPopup_Implementation()
+{
 
+}

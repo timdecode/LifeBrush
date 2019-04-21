@@ -77,7 +77,7 @@ public:
 
 protected:
 	void loadParameters();
-	auto loadExemplarFromElementActors() ->std::unordered_map<AElementActor*, FGraphNodeHandle>;
+	void syncExemplarFromElementActors();
 
 	FString _optimizationParametersString(FNeighbourhoodParameters& params);
 

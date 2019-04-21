@@ -7,9 +7,10 @@
 #include "DigTool.h"
 #include "VolumeComponent.h"
 #include "ElementEditor/DiscreteElementEditorComponent.h"
+#include <Kismet/KismetMathLibrary.h>
 
 
-void UDigTool::init(FRGC_UToolInitProperties& initProperties)
+void UDigTool::init(FRGC_UToolInitProperties& initProperties, UCameraComponent * camera)
 {
 	UTool::init(initProperties);
 
@@ -17,6 +18,7 @@ void UDigTool::init(FRGC_UToolInitProperties& initProperties)
 	editorComponent = initProperties.editor;
 
 	_kernel = _gaussianKernel( 5 );
+	_camera = camera;
 }
 
 void UDigTool::oneHandStart( UPrimitiveComponent * hand )
@@ -98,11 +100,32 @@ void UDigTool::focused()
 
 	_notifyDidModeDelegates( _digMode, _digMode );
 	_notifyDigToolDelegates();
+
+	// show all the volumes
+	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator)
+	{
+		UChunkedVolumeComponent * volume = *iterator;
+
+		if (!volume || volume->GetWorld() != editorComponent->GetWorld())
+			continue;
+
+		URuntimeMeshComponent * rmc = volume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
+
+		if (rmc)
+			rmc->SetVisibility(true);
+	}
+
 }
 
 void UDigTool::loseFocus()
 {
 	Super::loseFocus();
+
+	if (popupActor)
+	{
+		popupActor->Destroy();
+		popupActor = nullptr;
+	}
 }
 
 void UDigTool::faceDown_released()
@@ -239,6 +262,111 @@ void UDigTool::setDigMode( EDigMode mode )
 	_notifyDidModeDelegates( _digMode, oldMode );
 }
 
+bool UDigTool::consume_rightShoulder_pressed()
+{
+	if (!popupActorClass ) return false;
+
+	UWorld * world = _camera->GetWorld();
+
+	const FVector cameraLocation = _camera->GetComponentLocation();
+	const FVector handLocation = _rightSelectionPoint->GetComponentLocation();
+
+	FRotator rotator = UKismetMathLibrary::FindLookAtRotation(handLocation, cameraLocation);
+
+	FTransform transform(rotator.Quaternion(), handLocation, FVector(1.0f));
+
+	// only maintain one popupActor
+	if (popupActor)
+	{
+		popupActor->Destroy();
+		popupActor = nullptr;
+	}
+
+	popupActor = world->SpawnActor<ADigToolPopupActor>(popupActorClass, transform);
+	popupActor->digTool = this;
+
+	return true;
+}
+
+void UDigTool::SaveMeshToCollection()
+{
+	if (!_lastVolume) return;
+	
+	URuntimeMeshComponent * rmc = _lastVolume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
+
+#if WITH_EDITOR
+	UWorld * world = GEditor->EditorWorld;
+
+	AActor * newActor = world->SpawnActor<AActor>();
+
+	// create scene root
+	if( USceneComponent * newScene = NewObject<USceneComponent>(newActor) )
+	{
+		AActor * originalActor = rmc->GetOwner();
+
+		USceneComponent * originalScene = originalActor->GetRootComponent();
+
+		FTransform newTransform = originalScene->GetComponentTransform();
+
+		newActor->SetRootComponent(newScene);
+		newActor->AddInstanceComponent(newScene);
+
+		newScene->SetWorldTransform(newTransform);
+	}
+
+	URuntimeMeshComponent * newRMC = Utility::duplicateRuntimeMeshComponentToActor(rmc, newActor);
+
+	FString baseName = "chunkedMesh_";
+
+	FString name = _actorLabelByDate(baseName);
+
+	newActor->SetActorLabel(name);
+#endif
+
+	ExitSession();
+}
+
+FString UDigTool::_actorLabelByDate(FString baseName)
+{
+	FDateTime now = FDateTime::Now();
+
+	return baseName += now.ToString();
+}
+
+void UDigTool::SaveMeshToScene()
+{
+	editorComponent->updateMeshInterface(_lastVolume);
+
+	if (popupActor)
+	{
+		popupActor->Destroy();
+		popupActor = nullptr;
+
+		if (toolDelegate) toolDelegate->cedeFocus(this);
+	}
+}
+
+void UDigTool::ExitSession()
+{
+	if (popupActor)
+	{
+		popupActor->Destroy();
+		popupActor = nullptr;
+
+		if (toolDelegate) toolDelegate->cedeFocus(this);
+	}
+
+	if (_lastVolume)
+	{
+		URuntimeMeshComponent * rmc = _lastVolume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
+
+		if (rmc)
+		{
+			rmc->SetVisibility(false);
+		}
+	}
+}
+
 void UDigTool::_createSelectionMeshComponent( UPrimitiveComponent * selectionPoint )
 {
 	if(_selectionMeshComponent)
@@ -306,27 +434,6 @@ void UDigTool::_smooth( UChunkedVolumeComponent * volume, FVector volumePosition
 
 void UDigTool::_convolve(ChunkGrid<float>& grid, FIntVector& index )
 {
-	//FIntVector offset = FIntVector::ZeroValue;
-
-	//float sum = 0.0f;
-	//for(offset.Z = -1; offset.Z <= 1; offset.Z++)
-	//{
-	//	for(offset.Y = -1; offset.Y <= 1; offset.Y++)
-	//	{
-	//		for(offset.X = -1; offset.X <= 1; offset.X++)
-	//		{
-	//			FIntVector i = index + offset;
-
-	//			sum += grid( i );
-	//		}
-	//	}
-	//}
-
-	//sum /= 9.0f;
-
-	//grid( index ) = sum;
-
-
 	float sum = 0.0f;
 
 	FIntVector j;

@@ -16,6 +16,12 @@ class URegionGrowingComponent;
 class UWidgetComponent;
 class UDiscreteElementEditorComponent;
 
+class UToolDelegate
+{
+public:
+	virtual void cedeFocus(class UTool * tool) {};
+};
+
 struct FUToolInitProperties
 {
 public:
@@ -24,7 +30,10 @@ public:
 	UPrimitiveComponent * rightSelectionPoint;
 	USceneComponent * targetComponent;
 	bool developerMode;
+	UToolDelegate * toolDelegate;
 };
+
+
 
 /**
 *
@@ -44,6 +53,8 @@ public:
 
 		targetComponent = initProperties.targetComponent;
 
+		toolDelegate = initProperties.toolDelegate;
+
 		_leftSelectionPoint = initProperties.leftSelectionPoint;
 		_rightSelectionPoint = initProperties.rightSelectionPoint;
 
@@ -51,6 +62,7 @@ public:
 		_selectionB = initProperties.rightSelectionPoint;
 
 		_handMode = HandMode::None;
+
 
 		_updateLast();
 	}
@@ -146,6 +158,15 @@ public:
 	virtual void faceLeft_pressed()
 	{
 
+	}
+
+	// Shoulder Right
+	// -----------------------------
+	// The right shoulder button was pressed. If the event is not consumed, other tools can process the event.
+	// \return Whether the shoulder button event pressed event is consumed. True, for consumed, false if it wasn't consumed by this tool.
+	virtual bool consume_rightShoulder_pressed()
+	{
+		return false;
 	}
 	
 	virtual void warmupOtherTool(UTool * other)
@@ -406,6 +427,8 @@ public:
 
 	UWidgetComponent * widgetComponent = nullptr;
 	UWidgetComponent * selectionPointWidgetComponent = nullptr;
+
+	UToolDelegate * toolDelegate = nullptr;
 
 	bool developerMode = true;
 

@@ -9,6 +9,16 @@
 
 #include "DigTool.generated.h"
 
+UCLASS(Blueprintable)
+class LIFEBRUSH_API ADigToolPopupActor : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	class UDigTool * digTool = nullptr;
+};
+
 UENUM( BlueprintType )
 enum class EDigMode : uint8
 {
@@ -46,7 +56,7 @@ class LIFEBRUSH_API UDigTool : public UTool
 
 public:
 
-	void init(FRGC_UToolInitProperties& initProperties);
+	void init(FRGC_UToolInitProperties& initProperties, UCameraComponent * camera);
 
 	virtual void oneHandStart( UPrimitiveComponent * hand ) override;
 	virtual void oneHandEnd( UPrimitiveComponent * hand ) override;
@@ -64,24 +74,45 @@ public:
 	void setDigMode( EDigMode mode );
 	EDigMode getDigMode() { return _digMode; }
 
+
+	virtual bool consume_rightShoulder_pressed() override;
+
 public:
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
+	UFUNCTION(BlueprintCallable, Category = Generation)
+	void SaveMeshToCollection();
+
+	UFUNCTION(BlueprintCallable, Category = Generation)
+	void SaveMeshToScene();
+
+	UFUNCTION(BlueprintCallable, Category = Generation)
+	void ExitSession();
+
+public:
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	float radius = 5.0f; // cell units
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipEditor")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	float fillRate = 1.0f; 
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipEditor")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	float maxValue = 100.0f;
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	UStaticMesh * selectionMesh;
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	UMaterialInterface * selectionMeshMaterial;
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	float selectionMeshScaleFactor = 2.0f;
+
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	TSubclassOf<class ADigToolPopupActor> popupActorClass;
+
+	UPROPERTY()
+	ADigToolPopupActor * popupActor = nullptr;
+
 
 	UPROPERTY()
 	URegionGrowingComponent * regionGrowingComponent = nullptr;
@@ -92,10 +123,10 @@ public:
 	// ------------------------------
 	// Widget Stuff
 	// ------------------------------
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor", meta = (MustImplement = "DigToolDelegate") )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush", meta = (MustImplement = "DigToolDelegate") )
 	TSubclassOf<class UUserWidget> widgetClass;
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor", meta = (MustImplement = "DigToolDelegate") )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush", meta = (MustImplement = "DigToolDelegate") )
 	TSubclassOf<class UUserWidget> selectionPointWidgetClass;
 
 	virtual TSubclassOf<class UUserWidget> getWidgetClass() { return widgetClass; }
@@ -118,6 +149,9 @@ protected:
 
 	void _notifyDidModeDelegates( EDigMode newMode, EDigMode oldMode );
 
+	FString _actorLabelByDate(FString baseName);
+
+
 protected:
 	UPROPERTY()
 	EDigMode _digMode = EDigMode::Adding;
@@ -126,6 +160,8 @@ protected:
 	UStaticMeshComponent * _selectionMeshComponent;
 
 	lb::BasicGrid<float> _kernel;
+
+	UCameraComponent * _camera = nullptr;
 
 	UChunkedVolumeComponent * _lastVolume = nullptr;
 

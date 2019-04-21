@@ -622,7 +622,7 @@ auto tcodsUStaticMeshInterface::buildMesh(
 
 	_worldLimits = worldLimits;
 
-	runtimeMesh->ClearAllMeshSections();
+	if(runtimeMesh) runtimeMesh->ClearAllMeshSections();
 
 	MeshDataAndVertexLookup wholeMeshDataAndLookup = _toMeshData(uMesh, toWorld);
 
@@ -649,7 +649,7 @@ auto tcodsUStaticMeshInterface::buildMesh(
 		sectionIndex++;
 	}
 
-	_buildRuntimeMesh(runtimeMesh, false, worldLimits);
+	if( runtimeMesh ) _buildRuntimeMesh(runtimeMesh, false, worldLimits);
 
 	_initBVH();
 	_initNearestKDTree(worldLimits);

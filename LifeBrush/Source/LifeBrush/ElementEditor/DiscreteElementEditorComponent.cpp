@@ -263,6 +263,37 @@ void UDiscreteElementEditorComponent::_initMeshInterface()
 {
 	if (meshInterfaceMode == EMeshInterfaceMode::ChunkedMesh)
 		context->meshInterface = std::make_shared<tcodsChunkedGridMeshInterface>();
+	else if (meshInterfaceMode == EMeshInterfaceMode::StaticMesh)
+	{
+		auto meshInterface = std::make_shared<tcodsUStaticMeshInterface>();
+
+		context->meshInterface = meshInterface;
+
+		TArray<USceneComponent*> components;
+		GetOwner()->GetRootComponent()->GetChildrenComponents(true, components);
+
+		auto findComponent = [&](UClass * theClass) -> USceneComponent * 
+		{
+			for (auto * c : components)
+			{
+				if (c->GetClass()->IsChildOf(theClass)) return c;
+			}
+
+			return nullptr;
+		};
+
+		// find the RMC
+		URuntimeMeshComponent * rmc = Cast<URuntimeMeshComponent>(findComponent(URuntimeMeshComponent::StaticClass()));
+
+		UStaticMeshComponent * meshComponent = Cast<UStaticMeshComponent>(findComponent(UStaticMeshComponent::StaticClass()));
+
+		UStaticMeshComponent * mesh = GetOwner()->FindComponentByClass<UStaticMeshComponent>();
+
+		if (mesh && mesh->GetStaticMesh())
+		{
+			meshInterface->buildMesh(*mesh->GetStaticMesh(), mesh->GetComponentToWorld(), limits, rmc);
+		}
+	}
 }
 
 void UDiscreteElementEditorComponent::RegisterComponentTickFunctions(bool bRegister)

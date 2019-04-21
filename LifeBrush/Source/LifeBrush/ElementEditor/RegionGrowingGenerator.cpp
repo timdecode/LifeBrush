@@ -47,7 +47,7 @@ void URegionGrowingGenerator::attach(SynthesisContext * context, UGraphSimulatio
 
 	_algorithm->reloadContext();
 
-	_actorToElement = loadExemplarFromElementActors();
+	syncExemplarFromElementActors();
 }
 
 void URegionGrowingGenerator::detach()
@@ -287,6 +287,9 @@ void URegionGrowingGenerator::setSelection(std::vector<AElementActor*> elementAc
 			selection.push_back(handle);
 	}
 
+	// resync
+	syncExemplarFromElementActors();
+
 	_algorithm->updateExampleSelection(selection);
 }
 
@@ -305,17 +308,17 @@ EGenerationMode URegionGrowingGenerator::generationMode()
 	return _generationMode;
 }
 
-auto URegionGrowingGenerator::loadExemplarFromElementActors() -> std::unordered_map<AElementActor*, FGraphNodeHandle>
+void URegionGrowingGenerator::syncExemplarFromElementActors()
 {
-	std::unordered_map<AElementActor*, FGraphNodeHandle> actorToElement;
-
 	if (!_algorithm || !exemplar)
-		return actorToElement;
+		return;
 
 	TArray<USceneComponent*> exemplarSceneComponents;
 	exemplar->GetRootComponent()->GetChildrenComponents(false, exemplarSceneComponents);
 
 	auto& exemplarDomain = _algorithm->exemplar();
+
+	exemplarDomain.graph.beginTransaction();
 
 	std::map<URegionGrowingComponent::ElementTypeDescription, int, URegionGrowingComponent::InferredElementTypeDescriptionComparator> actorToTypes;
 
@@ -338,6 +341,8 @@ auto URegionGrowingGenerator::loadExemplarFromElementActors() -> std::unordered_
 	}
 
 	// build the elements
+	TMap<FGraphNodeHandle, AElementActor*> elementToActor;
+
 	for (auto sceneComponent : exemplarSceneComponents)
 	{
 		AElementActor * elementActor = Cast<AElementActor>(sceneComponent->GetOwner());
@@ -351,23 +356,75 @@ auto URegionGrowingGenerator::loadExemplarFromElementActors() -> std::unordered_
 		FQuat orientation = sceneComponent->GetComponentRotation().Quaternion();
 		float scale = sceneComponent->GetComponentScale().X;
 
-		auto h = exemplarDomain.insert(position, orientation, scale);
-		ElementTuple element(h, exemplarDomain.graph);
+		// we already have this guy, update him
+		if (_actorToElement.find(elementActor) != _actorToElement.end())
+		{
+			auto h = _actorToElement[elementActor];
 
-		element.element.type = elementID;
+			ElementTuple element(h, exemplarDomain.graph);
 
-		actorToElement[elementActor] = h;
+			element.node.position = position;
+			element.node.orientation = orientation;
+			element.node.scale = scale;
 
-		UStaticMeshComponent * mesh = (UStaticMeshComponent*)elementActor->GetComponentByClass(UStaticMeshComponent::StaticClass());
+			// first nuke the components that aren't an element
+			static const ComponentType ElementType = componentType<FElementObject>();
 
-		if (mesh == nullptr || mesh->GetStaticMesh() == nullptr)
-			continue;
+			auto components = element.node.components;
+			for (ComponentType component : components)
+			{
+				if( component == ElementType ) continue;
 
-		if (elementActor)
+				element.node.removeComponent(exemplarDomain.graph, component);
+			}
+
 			elementActor->writeToElement(element, exemplarDomain.graph);
+
+			elementToActor.Add(h, elementActor);
+		}
+		// create a new element
+		else
+		{
+			auto h = exemplarDomain.insert(position, orientation, scale);
+			ElementTuple element(h, exemplarDomain.graph);
+
+			element.element.type = elementID;
+
+			_actorToElement[elementActor] = h;
+
+			UStaticMeshComponent * mesh = (UStaticMeshComponent*)elementActor->GetComponentByClass(UStaticMeshComponent::StaticClass());
+
+			if (mesh == nullptr || mesh->GetStaticMesh() == nullptr)
+				continue;
+
+			elementActor->writeToElement(element, exemplarDomain.graph);
+
+			elementToActor.Add(h, elementActor);
+		}
 	}
 
-	return actorToElement;
+	// nuke element that are gone from the exemplar
+	{
+		// get rid of the nodes
+		for (FGraphNode& node : exemplarDomain.graph.allNodes)
+		{
+			if (!node.isValid()) continue;
+
+			if (!elementToActor.Contains(node.handle()))
+			{
+				exemplarDomain.graph.removeNode(node.handle());
+			}
+		}
+
+		// get rid of old references in the table
+		for (auto& pair : _actorToElement)
+		{
+			if (!elementToActor.Contains(pair.second))
+				_actorToElement.erase(pair.first);
+		}
+	}
+
+	exemplarDomain.graph.endTransaction();
 }
 
 

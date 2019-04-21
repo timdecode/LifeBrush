@@ -2854,6 +2854,9 @@ void Algorithm::ExampleSelection::_initKCoherentNeighbours( Domain& exemplar, Al
 
 	for(FElementObject& ex : exemplar)
 	{
+		// limit the operation to the selection
+		if( selection.find(ex.nodeHandle()) == selection.end() ) continue;
+
 		futures.emplace_back( algorithm._context.threadPool->push( [this, &ex, &exemplar, &algorithm, clusteringRadiusSqrd]( int threadID ) mutable {
 			vector<SimilarElement> nearestExamples = algorithm._nearestSimilarElements(
 				ex.nodeHandle(), exemplar, 
