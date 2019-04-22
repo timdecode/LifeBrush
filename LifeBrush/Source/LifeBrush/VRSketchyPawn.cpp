@@ -614,7 +614,7 @@ void AVRSketchyPawn::_startSimulation()
 
 void AVRSketchyPawn::_endSimulation()
 {
-	if(!flexSimulation || !regionGrowingComponent)
+	if(!flexSimulation || !editorComponent)
 		return;
 
 	auto elementDomain = flexSimulation->exportElementDomain();
