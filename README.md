@@ -1,9 +1,9 @@
 # LifeBrush
 <img align="right" src="LifeBrush/docs/lifebrush_github_intro.gif">
 
-LifeBrush is a VR environment for creating interactive biomolecular illustrative simulations in the Unreal Engine 4 Editor. On the right is a clip showing a mitochondrion being painted and simulated within VR.
+LifeBrush is a VR environment for creating interactive biomolecular illustrative simulations in the Unreal Engine 4 Editor. On the right is a clip showing a mitochondrion being painted and simulated within VR. 
 
-The generative brushes use discrete element texture synthesis to synthesize molecules on surfaces and in space. We have also developed a agent-based modeling framework around our implementation of Entity-Component-System (ECS) that can simulate 10,000 agents at 90 fps within Unreal. We bypass Unreal's traditional agent-component architecture to achieve these results.
+The generative brush uses discrete element texture synthesis to generate molecules on surfaces and in space. We have also developed an agent-based modeling framework around our implementation of an Entity-Component-System (ECS) that can simulate 10,000 agents at 90 fps within Unreal. We bypass Unreal's traditional agent-component architecture to achieve that performance, we also use Nvidia's GPU Flex particle physics engines to process collisions on the GPU.
 
 The C++ agent framework is based on an Entity-Component-System that we developed for Unreal Engine. Components are compact C++ structs. Entities organize multiple components into a single entity. We do not use Unreal's actor-component model because it cannot handle very large numbers of agents. Our ECS is the basis of our brush-based synthesis framework for painting agents and for simulating them.
 
@@ -19,7 +19,7 @@ Requirements:
 - At least an Nvidia GTX 1080
 - HTC Vive
 
-I haven't tested with an Oculus Rift, I'm pretty sure it won't work out of the box.
+I haven't tested with an Oculus Rift, I'm pretty sure it won't work, but I would like to make it work someday.
 
 # Using LifeBrush
 
@@ -29,11 +29,11 @@ There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one 
 
 ![The VR painting environment](LifeBrush/docs/main_overview.jpg)
 
-The VR painting environment (above) contains a simulation space where you can paint molecules with a 3D generative brush using the Vive wand. The exemplar palette (this is a term from the literature) contains example molecular arrangements. LifeBrush uses these arrangements to synthesize new, non-repeating, arrangements of molecules in the simulation space that are similar to a selected example.
+The VR painting environment (above) contains a simulation space where you can paint molecules with a 3D generative brush using the Vive controller. The exemplar palette (exemplar is jargon from the literature) contains example molecular arrangements. LifeBrush uses these arrangements to synthesize new, non-repeating, arrangements of molecules in the simulation space that are similar to a selected example.
 
 <img src="LifeBrush/docs/generation_erase.webp">
 
-You can paint molecules on a surface (above) or in space. With the **Generative Brush** chosen, you can press the top of the Vive controller trackpage to toggle between surface and volume (in 3D space) painting. The bottom part of the track pad toggles between adding or removing elements. Squeeze the trigger to pain. How much you squeeze controls the size of the brush.
+You can paint molecules on a surface (above) or in space. With the **Generative Brush** chosen press the top of the Vive controller trackpad to toggle between surface and volume (in 3D space) painting. The bottom part of the track pad toggles between adding or removing elements. Squeeze the trigger to paint. How much you squeeze controls the size of the brush.
 
 <img src="LifeBrush/docs/selection.webp">
 
@@ -43,13 +43,13 @@ New patterns are created in the exemplar palette within the 2D mouse-and-keyboar
 
 ![](LifeBrush/docs/menu_interaction-01.jpg)
 
-LifeBrush is controlled by a clunky menu system (I would like to improve this in the future).Pressing the shoulder button (the button above the trackpad) summons the VR menu where you select different tools and switch back and forth between the simulation mode and the painting mode. You point the "pointer cylinder" at the menu and squeeze the trigger to interact with the menu. Don't point the controller directly at the menu, it's weird, but you actually hold it a titled angle, it is just more comfortable this way.
+LifeBrush is controlled by a clunky menu system (I would like to improve this in the future). Press the shoulder button (the button above the trackpad) to summor the VR menu. You point the "pointer cylinder" at the menu and squeeze the trigger to interact with the menu. Don't point the controller directly at the menu, it's weird, but you actually hold it a titled angle, it is more comfortable this way (and confusing to everyone I show LifeBrush to).
 
 ![](LifeBrush/docs/menu_interaction-02.jpg)
 
 There are two modes, a painting mode and simulation mode. Choose Enter Simulation to enter the simulation mode, this will change the menu options. You can go back to the painting mode with Enter Painting.
 
-The the simulation mode, you can grab molecules, with the Grab Tool. You can also visualize agent path lines by choosing that tool and selecting some molecules, their spatial histories will be displayed. There is even a visualization tool for exploring events, such as ATP synthesis from ADP at an ATP-synthase molecule. These visualizations are described in an upcoming article.
+In the simulation mode use the Grab Tool to grab and move molecules about. You can also visualize agent path lines by choosing that tool and selecting some molecules, their spatial histories will be displayed. There is even a visualization tool for exploring events, such as ATP synthesis from ADP at an ATP-synthase molecule. These visualizations are described in an upcoming article.
 
 # To Do
 
