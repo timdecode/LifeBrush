@@ -51,6 +51,14 @@ There are two modes, a painting mode and simulation mode. Choose Enter Simulatio
 
 The the simulation mode, you can grab molecules, with the Grab Tool. You can also visualize agent path lines by choosing that tool and selecting some molecules, their spatial histories will be displayed. There is even a visualization tool for exploring events, such as ATP synthesis from ADP at an ATP-synthase molecule. These visualizations are described in an upcoming article.
 
+# To Do
+
+- Code examples
+- Convert this to an Unreal Plugin instead of a project. It is still a project because hotreloading in Unreal sucks for plugins.
+- Describe the mesh tool
+- Fix the mesh tool
+- Rethink and refactor the UI
+
 # License and Copyright
 
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
