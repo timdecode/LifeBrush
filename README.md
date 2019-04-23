@@ -7,7 +7,7 @@ The generative brush uses discrete element texture synthesis to generate molecul
 
 The C++ agent framework is based on an Entity-Component-System that we developed for Unreal Engine. Components are compact C++ structs. Entities organize multiple components into a single entity. We do not use Unreal's actor-component model because it cannot handle very large numbers of agents. Our ECS is the basis of our brush-based synthesis framework for painting agents and for simulating them.
 
-This toolkit was orignally described in a conference paper in 2018, "LifeBrush: Painting interactive agent-based simulations" by Timothy Davison, Faramarz Samavati and Christian Jacob (the bibtex is below). The version here on GitHub is a significant evolution of that paper.
+This toolkit was originally described in a conference paper in 2018, "LifeBrush: Painting interactive agent-based simulations" by Timothy Davison, Faramarz Samavati and Christian Jacob (the BibTeX is below). The version here on GitHub is a significant evolution of that paper.
 
 # Build instructions
 
@@ -23,7 +23,7 @@ I haven't tested with an Oculus Rift, I'm pretty sure it won't work, but I would
 
 # Using LifeBrush
 
-LifeBrush is designed to run within the Unreal Editor and not as a standalone program. Within the Unreal Editor you use the VR preview mode to enter the painting environment.
+LifeBrush is designed to run within the Unreal Editor and not as a standalone program. Within the Unreal Editor, you use the VR preview mode to enter the painting environment.
 
 There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one where the molecules have already been painted into a mitochondrial scene, ``mitochondrion_completed``. Both can be found in the ``Content\Mitochondrion`` folder within the Unreal Project.
 
@@ -33,7 +33,7 @@ The VR painting environment (above) contains a simulation space where you can pa
 
 <img src="LifeBrush/docs/generation_erase.webp">
 
-You can paint molecules on a surface (above) or in space. With the **Generative Brush** chosen press the top of the Vive controller trackpad to toggle between surface and volume (in 3D space) painting. The bottom part of the track pad toggles between adding or removing elements. Squeeze the trigger to paint. How much you squeeze controls the size of the brush.
+You can paint molecules on a surface (above) or in space. With the **Generative Brush** chosen press the top of the Vive controller trackpad to toggle between surface and volume (in 3D space) painting. The bottom part of the trackpad toggles between adding or removing elements. Squeeze the trigger to paint. How much you squeeze controls the size of the brush.
 
 <img src="LifeBrush/docs/selection.webp">
 
@@ -43,18 +43,18 @@ New patterns are created in the exemplar palette within the 2D mouse-and-keyboar
 
 ![](LifeBrush/docs/menu_interaction-01.jpg)
 
-LifeBrush is controlled by a clunky menu system (I would like to improve this in the future). Press the shoulder button (the button above the trackpad) to summor the VR menu. You point the "pointer cylinder" at the menu and squeeze the trigger to interact with the menu. Don't point the controller directly at the menu, it's weird, but you actually hold it a titled angle, it is more comfortable this way (and confusing to everyone I show LifeBrush to).
+LifeBrush is controlled by a clunky menu system (I would like to improve this in the future). Press the shoulder button (the button above the trackpad) to summon the VR menu. You point the "pointer cylinder" at the menu and squeeze the trigger to interact with the menu. Don't point the controller directly at the menu, it's weird, but you actually hold it a titled angle, it is more comfortable this way (and confusing to everyone I show LifeBrush to).
 
 ![](LifeBrush/docs/menu_interaction-02.jpg)
 
-There are two modes, a painting mode and simulation mode. Choose Enter Simulation to enter the simulation mode, this will change the menu options. You can go back to the painting mode with Enter Painting.
+There are two modes, a painting mode, and simulation mode. Choose "Enter Simulation" to enter the simulation mode, this will change the menu options. You can go back to the painting mode with "Enter Painting".
 
-In the simulation mode use the Grab Tool to grab and move molecules about. You can also visualize agent path lines by choosing that tool and selecting some molecules, their spatial histories will be displayed. There is even a visualization tool for exploring events, such as ATP synthesis from ADP at an ATP-synthase molecule. These visualizations are described in an upcoming article.
+In the simulation mode, use the Grab Tool to grab and move molecules about. You can also visualize agent path lines by choosing that tool and selecting some molecules, their spatial histories will be displayed. There is even a visualization tool for exploring events, such as ATP synthesis from ADP at an ATP-synthase molecule. These visualizations are described in an upcoming article.
 
 # To Do
 
 - Code examples
-- Convert this to an Unreal Plugin instead of a project. It is still a project because hotreloading in Unreal sucks for plugins.
+- Convert this to an Unreal Plugin instead of a project. It is still a project because hot reloading in Unreal sucks for plugins.
 - Describe the mesh tool
 - Fix the mesh tool
 - Rethink and refactor the UI
@@ -63,7 +63,7 @@ In the simulation mode use the Grab Tool to grab and move molecules about. You c
 
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
 
-All of my code is released under a MIT license. There are included source-codes released under their respective licenses.
+All of my code is released under an MIT license. There are included source-codes released under their respective licenses.
 
 **Please cite with:**
 ```
