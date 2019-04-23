@@ -31,9 +31,13 @@ There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one 
 
 The VR painting environment (above) contains a simulation space where you can paint molecules with a 3D generative brush using the Vive wand. You pull the trigger to control the size of the pattern painted into the scene. You can only paint within the bounds of the simulation space&mdash;the size of which is configurable back in the Unreal Editor.  
 
-The patterns that you can paint are selected from an exemplar palette. The patterns capture the spatial arrangement of molecules and the properties and configuration of the agents that simulate those molecules. The generative brush doesn't just tile these patterns, it generates new non-repetitve arrangments in the simulation space that are similar to the selection the exemplar palette.
+<img src="LifeBrush/docs/selection.webp">
+
+The user selects molecular patterns from the exemplar palette. With the **Generative Brush** chosen, move the end of the controller over an arrangement in the exemplar palette and squeeze the trigger to select the overlapping molecules. Pressing the top part of the trackpad once switches the mode to removing overlapping molecules from the selection.
 
 New patterns can be created in the exemplar palette within the Unreal Editor. There is also an old broken editor within VR that allows you to create patterns in VR, but I will probably remove this in the future.
+
+
 
 ![](LifeBrush/docs/menu_interaction-01.jpg)
 
