@@ -17,16 +17,23 @@ Requirements:
 - At least an Nvidia GTX 1080
 - HTC Vive
 
-I haven't tested with an Oculus Rift, I'm pretty sure it won't work out of the box. 
+I haven't tested with an Oculus Rift, I'm pretty sure it won't work out of the box.
 
 # Using LifeBrush
 
 LifeBrush is designed to run within the Unreal Editor. You use the VR preview mode to enter the painting environment and to simulate. Changes can be saved back to the Unreal Editor world through the VR menus.
 
+![](docs/main_overview.jpg)
+
+![](docs/menu_interaction-01.jpg)
+
+![](docs/menu_interaction-02.jpg)
+
+
 There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one where the molecules have already been painted into a mitochondrial scene, ``mitochondrion_completed``.
 
 
-# License and Copyright 
+# License and Copyright
 
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
 
