@@ -4,7 +4,6 @@
 
 #include "RegionGrowingComponent.h"
 #include "WidgetComponent.h"
-#include "MultiSelectVRPopup.h"
 #include "ElementEditor/DiscreteElementEditorComponent.h"
 #include "RegionGrowingGeneratorTool.h"
 #include "SelectionTool.h"
@@ -45,7 +44,7 @@ void USelectionTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransfo
 	if (useGroupSelection)
 		_tickGroupSelection(dt, hand);
 	else
-		_tickMultiSelection(dt, hand);
+		_tickSelection(dt, hand);
 }
 
 void USelectionTool::_tickGroupSelection(float dt, UPrimitiveComponent * hand)
@@ -126,7 +125,7 @@ void USelectionTool::_tickGroupSelection(float dt, UPrimitiveComponent * hand)
 	}
 }
 
-void USelectionTool::_tickMultiSelection(float dt, UPrimitiveComponent * hand)
+void USelectionTool::_tickSelection(float dt, UPrimitiveComponent * hand)
 {
 	// perform an overlap test at the hand position to find actors that overlap
 	TArray<FOverlapResult> overlaps;
@@ -204,21 +203,6 @@ void USelectionTool::faceDown_touchEnd()
 
 void USelectionTool::faceUp_released(USceneComponent * interactionPoint /*= nullptr*/)
 {
-	if( !interactionPoint || !multiSelectActorClass)
-		return;
-
-	UWorld * world = targetComponent->GetWorld();
-
-
-	FVector location = interactionPoint->GetComponentLocation();
-	FQuat rotation = FQuat::Identity;
-
-	FTransform transform( rotation, location, FVector( 1.0f ) );
-
-
-
-	AMultiSelectVRPopup * multiSelectActor = world->SpawnActor<AMultiSelectVRPopup>( multiSelectActorClass, transform );
-	multiSelectActor->setSelectionTool( this );
 
 }
 

@@ -10,7 +10,6 @@
 #include "SelectionTool.generated.h"
 
 class URegionGrowingComponent;
-class AMultiSelectVRPopup;
 class AElementActor;
 class UDiscreteElementEditorComponent;
 class URegionGrowingGeneratorTool;
@@ -109,9 +108,6 @@ public:
 
 	virtual TSubclassOf<class UUserWidget> getSelectionWidgetClass() { return selectionPointWidgetClass; }
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
-	TSubclassOf<class AMultiSelectVRPopup> multiSelectActorClass;
-
 protected:
 	UPROPERTY()
 	UStaticMeshComponent * _selectionMeshComponent;
@@ -176,7 +172,7 @@ protected:
 	void _destroySelectionMeshComponent();
 
 	void _tickGroupSelection(float dt, UPrimitiveComponent * hand);
-	void _tickMultiSelection(float dt, UPrimitiveComponent * hand);
+	void _tickSelection(float dt, UPrimitiveComponent * hand);
 
 
 	void _hideSelection( TSet<AElementActor*>& selected );
