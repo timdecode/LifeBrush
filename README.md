@@ -23,6 +23,8 @@ I haven't tested with an Oculus Rift, I'm pretty sure it won't work out of the b
 
 LifeBrush is designed to run within the Unreal Editor and not as a standalone program. Within the Unreal Editor you use the VR preview mode to enter the painting environment.
 
+There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one where the molecules have already been painted into a mitochondrial scene, ``mitochondrion_completed``. Both can be found in the ``Content\Mitochondrion`` folder within the Unreal Project.
+
 ![The VR painting environment](LifeBrush/docs/main_overview.jpg)
 
 The VR painting environment (above) contains a simulation space where you can paint molecules with a 3D generative brush using the Vive wand. You pull the trigger to control the size of the pattern painted into the scene. You can only paint within the bounds of the simulation space&mdash;the size of which is configurable back in the Unreal Editor.  
@@ -42,8 +44,6 @@ There are two modes, a painting mode and simulation mode. Choose Enter Simulatio
 The generative brush lets you paint agents. You have to select some agents from the exemplar first. You select by putting the tip of the controller over the molecule you want to select, then squeeze the trigger to select it. You can select multiple molecules by holding the trigger down and moving the controller around. How hard you squeeze the controller controls the size of the selection sphere. You cannot select two different groups of molecules at the same time, nothing will be painted. This limitation is on the to-do list.
 
 With some molecules selected you can paint within the simulation box by squeezing the trigger. The molecules are created at the tip of the controller. The controller must be within the simulation box, or nothing will be generated. The simulation box is there to limit the number of agents simulated, the soft limit is about 10,000 on my computer for 90fps playback.
-
-There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one where the molecules have already been painted into a mitochondrial scene, ``mitochondrion_completed``.
 
 You can press the top-half or the bottom-half of the trackpad to toggle the options of the current tool. For the generative brush, you can press the top-half of the trackpad to switch between painting on surfaces or painting directly into space. The bottom half toggles between generating molecules and an eraser mode.
 
