@@ -1,4 +1,5 @@
 # LifeBrush
+<img align="right" src="LifeBrush/docs/lifebrush_github_intro.gif">
 LifeBrush is a VR Unreal Engine 4 toolkit for creating interactive biomolecular illustrative simulations. Users paint molecules into a simulation (TileBrush style) in VR. A fast and powerful agent-based modeling framework drives those simulations, the framework is fully integrate into the Unreal Editor.
 
 LifeBrush is fast. The generative brushes can synthesize thousands of molecules per second in volumes and on surfaces. The agent-based modeling framework is also fast, capable of simulating more than 10,000 agents at 90 fps in VR.
