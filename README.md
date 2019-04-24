@@ -1,7 +1,7 @@
 # LifeBrush
 <img align="right" src="LifeBrush/docs/lifebrush_github_intro.gif">
 
-LifeBrush is a VR environment for creating interactive biomolecular illustrative simulations in the Unreal Engine 4 Editor. On the right is a clip showing a mitochondrion being painted and simulated within VR. 
+[LifeBrush is a VR environment](https://youtu.be/pMArGEEIW98) for creating interactive biomolecular illustrative simulations in the Unreal Engine 4 Editor. On the right is a clip showing a mitochondrion being painted and simulated within VR. 
 
 The generative brush uses discrete element texture synthesis to generate molecules on surfaces and in space. We have also developed an agent-based modeling framework around our implementation of an Entity-Component-System (ECS) that can simulate 10,000 agents at 90 fps within Unreal. We bypass Unreal's traditional agent-component architecture to achieve that performance, we also use Nvidia's GPU Flex particle physics engines to process collisions on the GPU.
 
