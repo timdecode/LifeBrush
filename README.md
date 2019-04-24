@@ -23,6 +23,8 @@ I haven't tested with an Oculus Rift, I'm pretty sure it won't work, but I would
 
 # Using LifeBrush
 
+> Bug: Unreal likes to switch controllers on me. So, I would suggest just using one controller and turning off the other one. I will fix some of the bugs that arise from this switching.
+
 LifeBrush is designed to run within the Unreal Editor and not as a standalone program. Within the Unreal Editor, you use the VR preview mode to enter the painting environment.
 
 There are two demo levels, a bare mitochondrion ``mitochondrion_blank`` and one where the molecules have already been painted into a mitochondrial scene, ``mitochondrion_completed``. Both can be found in the ``Content\Mitochondrion`` folder within the Unreal Project.
