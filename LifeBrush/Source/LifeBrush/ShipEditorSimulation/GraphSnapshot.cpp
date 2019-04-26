@@ -28,10 +28,13 @@ void FGraphSnapshot::snapshot(FGraph& graph_in)
 
 		graph._componentStorage.Add(storage);
 		
-		FGraphObject * objects = storage.at(0, componentClass);
-		FGraphObject * newObjects = storage.at(0, componentClass);
+		if (n > 0)
+		{
+			FGraphObject * objects = storage.at(0, componentClass);
+			FGraphObject * newObjects = storage.at(0, componentClass);
 
-		componentClass->CopyScriptStruct(newObjects, objects, n);
+			componentClass->CopyScriptStruct(newObjects, objects, n);
+		}
 	}
 }
 
