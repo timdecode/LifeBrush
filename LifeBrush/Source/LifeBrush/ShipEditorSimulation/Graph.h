@@ -254,8 +254,6 @@ struct LIFEBRUSH_API FGraphObject
 {
 	GENERATED_BODY()
 
-	virtual ~FGraphObject() {}
-
 public:
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
 	int32 nodeIndex = 0;
@@ -267,14 +265,9 @@ public:
 	bool isValid() { return _isValid; }
 	void invalidate() { _isValid = false; }
 
-    // called after a graph object is removed from a node and before the destructor
-    virtual void removedFromNode( struct FGraphNode& node, FGraph& graph );
-
 	static UScriptStruct* componentStruct( ComponentType type );
 
 	static ComponentType componentType( UScriptStruct* typeStruct );
-
-	virtual bool isTriviallyCopyable() { return true; }
 };
 
 template<class TComponent>
@@ -2795,8 +2788,6 @@ inline void FGraphNode::removeComponent( FGraph& graph )
 inline void FGraphNode::removeComponent( FGraph& graph, ComponentType type )
 {
     FGraphObject * component = this->component( graph, type );
-
-    component->removedFromNode( *this, graph );
 
 	graph.componentRemoved( *this, type );
 

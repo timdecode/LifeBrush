@@ -416,10 +416,6 @@ FGraphNode& FGraphObject::node(FGraph& graph)
 // ------------------------------------------------------------
 // FGraphObject
 // ------------------------------------------------------------
-void FGraphObject::removedFromNode( FGraphNode & node, FGraph & graph )
-{
-
-}
 
 UScriptStruct* FGraphObject::componentStruct( ComponentType type )
 {

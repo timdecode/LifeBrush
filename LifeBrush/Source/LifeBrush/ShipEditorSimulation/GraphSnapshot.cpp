@@ -26,24 +26,12 @@ void FGraphSnapshot::snapshot(FGraph& graph_in)
 		size_t n = storage.size();
 		UScriptStruct * componentClass = storage.componentClass;
 
-
-		bool canTriviallyCopy = true;
-		if (n > 0)
-		{
-			FGraphObject * component = storage.at(0, componentClass);
-
-			canTriviallyCopy = component->isTriviallyCopyable();
-		}
-
 		graph._componentStorage.Add(storage);
 		
-		if (!canTriviallyCopy)
-		{
-			FGraphObject * objects = storage.at(0, componentClass);
-			FGraphObject * newObjects = storage.at(0, componentClass);
+		FGraphObject * objects = storage.at(0, componentClass);
+		FGraphObject * newObjects = storage.at(0, componentClass);
 
-			componentClass->CopyScriptStruct(newObjects, objects, n);
-		}
+		componentClass->CopyScriptStruct(newObjects, objects, n);
 	}
 }
 

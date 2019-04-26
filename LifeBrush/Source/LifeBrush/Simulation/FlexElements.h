@@ -139,19 +139,6 @@ public:
 	float coefficient = 0.5f;
 };
 
-
-USTRUCT( BlueprintType )
-struct LIFEBRUSH_API FCachedElementGraphObject : public FGraphObject
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Mitochondria" )
-	FElement element;
-
-	virtual bool isTriviallyCopyable() override { return false; }
-};
-
 UENUM( BlueprintType )
 enum class EATPSynthaseState : uint8
 {
@@ -723,7 +710,7 @@ public:
 	auto play() -> void;
 	auto isPlaying() -> bool { return _playing; }
 
-	auto updateSphereWorldSpace(FVector position) -> void;
+	auto updateSphereWorldSpace(FVector position, float radius) -> void;
 
 	auto loadExportedDomainInfo(OutputDomainExport& exportInfo) -> void;
 	auto exportElementDomain()->FGraphSnapshot;
@@ -1005,6 +992,7 @@ protected:
 	bool _didSpawnShapesAndMesh = false;
 
 	FVector _spherePosition = FVector::ZeroVector;
+	float _sphereRadius = 20.0f;
 
 	const size_t _maxParticles = 20000;
 	const size_t _maxNeighbors = 48;
