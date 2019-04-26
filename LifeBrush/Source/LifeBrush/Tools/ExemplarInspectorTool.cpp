@@ -25,7 +25,7 @@ void UExemplarInspectorTool::init(FUToolInitProperties& initProperties, UDiscret
 	_camera = camera;
 }
 
-void UExemplarInspectorTool::focused()
+void UExemplarInspectorTool::gainFocus()
 {
 	_selection = nullptr;
 

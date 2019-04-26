@@ -57,7 +57,7 @@ void UGrabTool::loseFocus()
 	_placingObject = false;
 }
 
-void UGrabTool::focused()
+void UGrabTool::gainFocus()
 {
 
 }

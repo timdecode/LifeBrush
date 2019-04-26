@@ -30,7 +30,7 @@ public:
 
 	void init(FRGC_UToolInitProperties& initProperties);
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void oneHandStart(UPrimitiveComponent * hand) override;

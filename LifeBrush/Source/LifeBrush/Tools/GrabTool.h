@@ -58,7 +58,7 @@ public:
 	virtual void loseFocus();
 
 	// Called when the tool gains control.
-	virtual void focused();
+	virtual void gainFocus();
 
 	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastToWorldTransform);
 

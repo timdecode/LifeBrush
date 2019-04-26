@@ -63,7 +63,7 @@ public:
 
 	virtual void tickOneHand( float dt, UPrimitiveComponent * hand, FTransform lastTransform ) override;
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void faceDown_released() override;

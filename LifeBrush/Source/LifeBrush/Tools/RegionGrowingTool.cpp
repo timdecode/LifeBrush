@@ -9,10 +9,9 @@
 
 UGenerativeBrushTool::~UGenerativeBrushTool()
 {
-	_destroyBrushMeshComponent();
 }
 
-void UGenerativeBrushTool::focused()
+void UGenerativeBrushTool::gainFocus()
 {
 	if(widgetComponent && widgetClass)
 	{
@@ -41,35 +40,6 @@ void UGenerativeBrushTool::focused()
 	}
 }
 
-void UGenerativeBrushTool::loseFocus()
-{
-	if( _brushMeshComponent )
-		_brushMeshComponent->SetRelativeScale3D( FVector::ZeroVector );
-}
-
-void UGenerativeBrushTool::oneHandStart( UPrimitiveComponent * hand )
-{
-	_createBrushMeshComponent( hand );
-}
-
-void UGenerativeBrushTool::oneHandEnd( UPrimitiveComponent * hand )
-{
-}
-
-float UGenerativeBrushTool::_brushRadius()
-{
-	return 2.0f + 6.0 * selectionATriggerValue();
-}
-
-void UGenerativeBrushTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform lastTransform )
-{
-	if(!_brushMeshComponent)
-		return;
-
-	float radius = _brushRadius();
-
-	_brushMeshComponent->SetRelativeScale3D( FVector( radius * brushMeshScaleFactor ) );
-}
 
 void UGenerativeBrushTool::faceDown_released()
 {
@@ -128,35 +98,6 @@ void UGenerativeBrushTool::setTickMode( EGenerativeTickMode mode )
 
 
 
-void UGenerativeBrushTool::_createBrushMeshComponent( UPrimitiveComponent * selectionPoint )
-{
-	if(_brushMeshComponent)
-		return;
-
-	AActor * actor = selectionPoint->GetOwner();
-
-	_brushMeshComponent = NewObject<UStaticMeshComponent>( actor );
-	
-	_brushMeshComponent->AttachToComponent( selectionPoint, FAttachmentTransformRules::KeepRelativeTransform );
-	_brushMeshComponent->SetStaticMesh( brushMesh );
-	_brushMeshComponent->SetMaterial( 0, brushMeshMaterial );
-	_brushMeshComponent->SetVisibility( true );
-	_brushMeshComponent->SetRelativeScale3D( FVector( _brushRadius() * brushMeshScaleFactor ) );
-
-	_brushMeshComponent->RegisterComponent();
-}
-
-void UGenerativeBrushTool::_destroyBrushMeshComponent()
-{
-	if(_brushMeshComponent == nullptr || !_brushMeshComponent->IsValidLowLevel())
-		return;
-
-	_brushMeshComponent->DestroyComponent();
-
-	_brushMeshComponent = nullptr;
-}
-
-
 
 
 
@@ -184,12 +125,11 @@ void UGenerativeBrushTool::_destroyBrushMeshComponent()
 
 URegionGrowing_GenerativeBrushTool::~URegionGrowing_GenerativeBrushTool()
 {
-	_destroyBrushMeshComponent();
 }
 
-void URegionGrowing_GenerativeBrushTool::focused()
+void URegionGrowing_GenerativeBrushTool::gainFocus()
 {
-	Super::focused();
+	Super::gainFocus();
 }
 
 void URegionGrowing_GenerativeBrushTool::loseFocus()

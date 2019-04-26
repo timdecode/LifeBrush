@@ -31,7 +31,7 @@ public:
 		_camera = camera_in;
 	}
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void oneHandStart(UPrimitiveComponent * hand) override;
@@ -81,7 +81,7 @@ public:
 		_camera = camera_in;
 	}
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void oneHandStart(UPrimitiveComponent * hand) override;
@@ -119,7 +119,7 @@ enum class EPhysicalInteractionType : uint8
 };
 
 UCLASS(BlueprintType)
-class LIFEBRUSH_API UPhysicalInteractionTool : public UTool
+class LIFEBRUSH_API UPhysicalInteractionTool : public UBrushTool
 {
 	GENERATED_BODY()
 
@@ -143,9 +143,11 @@ public:
 
 	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform) override;
 
+	virtual bool shouldShowBrush() override;
+
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "ShipEditor")
-		EPhysicalInteractionType interactionType = EPhysicalInteractionType::Grab;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	EPhysicalInteractionType interactionMode = EPhysicalInteractionType::Grab;
 
 protected:
 	FFlexSimulation * _flexSimulation;

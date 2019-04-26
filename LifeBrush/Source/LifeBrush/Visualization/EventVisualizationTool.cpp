@@ -10,7 +10,7 @@
 
 
 
-void UEventVisualizationTool::focused()
+void UEventVisualizationTool::gainFocus()
 {
 
 }
@@ -112,7 +112,7 @@ void UEventVisualizationTool::_traceSelection(TSet<USEGraphEvent*>& selection)
 
 
 
-void UAgentPathlineTool::focused()
+void UAgentPathlineTool::gainFocus()
 {
 
 }
@@ -227,9 +227,11 @@ void UPhysicalInteractionTool::faceDown_released()
 
 void UPhysicalInteractionTool::oneHandStart(UPrimitiveComponent * handComponent)
 {
+	Super::oneHandStart(handComponent);
+
 	FVector hand = _flexSimulation->owner->GetTransform().InverseTransformPosition(handComponent->GetComponentLocation());
 
-	if (interactionType == EPhysicalInteractionType::Grab)
+	if (interactionMode == EPhysicalInteractionType::Grab)
 	{
 		_cachedCalculatedVelocity.Empty();
 
@@ -274,13 +276,15 @@ void UPhysicalInteractionTool::oneHandStart(UPrimitiveComponent * handComponent)
 
 void UPhysicalInteractionTool::oneHandEnd(UPrimitiveComponent * handComponent)
 {
+	Super::oneHandEnd(handComponent);
+
 	if (!_flexSimulation)
 		return;
 	
 	// put it somewhere far away
-	if (interactionType == EPhysicalInteractionType::Punch)
-		_flexSimulation->updateSphereWorldSpace(FVector(10000.0f, 0.0f, 0.0f));
-	else if (interactionType == EPhysicalInteractionType::Grab)
+	if (interactionMode == EPhysicalInteractionType::Punch)
+		_flexSimulation->updateSphereWorldSpace(FVector(10000.0f, 0.0f, 0.0f), 0.1f);
+	else if (interactionMode == EPhysicalInteractionType::Grab)
 	{
 		FGraph& graph = _flexSimulation->graphSimulation;
 
@@ -301,6 +305,8 @@ void UPhysicalInteractionTool::oneHandEnd(UPrimitiveComponent * handComponent)
 
 void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handComponent, FTransform lastTransform)
 {
+	Super::tickOneHand(dt, handComponent, lastTransform);
+
 	const FTransform toLocal = _flexSimulation->owner->GetTransform().Inverse();
 
 	const FTransform lastLocal = lastTransform * toLocal;
@@ -314,9 +320,9 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 	if (!_flexSimulation)
 		return;
 
-	if (interactionType == EPhysicalInteractionType::Punch)
-		_flexSimulation->updateSphereWorldSpace(hand);
-	else if (interactionType == EPhysicalInteractionType::Grab)
+	if (interactionMode == EPhysicalInteractionType::Punch)
+		_flexSimulation->updateSphereWorldSpace(handComponent->GetComponentLocation(), _brushRadius());
+	else if (interactionMode == EPhysicalInteractionType::Grab)
 	{
 		if (!_grabbedNode)
 			return;
@@ -378,3 +384,9 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 
 	}
 }
+
+bool UPhysicalInteractionTool::shouldShowBrush()
+{
+	return interactionMode == EPhysicalInteractionType::Punch;
+}
+

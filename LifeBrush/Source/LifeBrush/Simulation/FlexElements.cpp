@@ -260,8 +260,10 @@ auto FFlexSimulation::tick(float deltaT) -> void
 
 	_loadSprings();
 
+	// update the push-interaction sphere
 	(FVector4&)shapePositions[0] = _spherePosition;
 	shapePositions[0].W = 1.0f;
+	geometry[0].sphere.radius = _sphereRadius;
 
 	// Read Flex state into the simulation
 	_readFlexState(particles, velocities, phases);
@@ -638,11 +640,12 @@ auto FFlexSimulation::play() -> void
 	_playing = true;
 }
 
-auto FFlexSimulation::updateSphereWorldSpace( FVector position ) -> void
+auto FFlexSimulation::updateSphereWorldSpace( FVector position, float radius ) -> void
 {
 	FTransform transform = owner->GetRootComponent()->GetComponentTransform();
 
 	_spherePosition = transform.InverseTransformPosition( position );
+	_sphereRadius = radius / transform.GetScale3D().GetMax();
 }
 
 auto FFlexSimulation::loadExportedDomainInfo( OutputDomainExport& exportInfo ) -> void
@@ -1124,7 +1127,7 @@ void FFlexSimulation::_readRigidRotations()
 void FFlexSimulation::_spawnShapes( NvFlexCollisionGeometry * geometry, FVector4 * shapePositions, FQuat * shapeRotations, int * shapeFlags )
 {
 	shapeFlags[0] = NvFlexMakeShapeFlagsWithChannels( eNvFlexShapeSphere, true, eNvFlexPhaseShapeChannel0 );
-	geometry[0].sphere.radius = 20.0f;
+	geometry[0].sphere.radius = _sphereRadius;
 
 	(FVector4&)shapePositions[0] = _spherePosition; 	
 	shapePositions[0].W = 1.0f;

@@ -53,7 +53,7 @@ public:
 	void init(FUToolInitProperties& initProperties, UDiscreteElementEditorComponent * elementEditor, UCameraComponent * camera);
 
 	// UTool overrids
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void tick(float dt) override;

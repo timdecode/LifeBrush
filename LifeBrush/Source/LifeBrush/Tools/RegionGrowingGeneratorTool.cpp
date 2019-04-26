@@ -10,7 +10,6 @@
 
 UGeneratorTool::~UGeneratorTool()
 {
-	_destroyBrushMeshComponent();
 }
 
 void UGeneratorTool::init(FRGC_UToolInitProperties& initProperties)
@@ -20,9 +19,9 @@ void UGeneratorTool::init(FRGC_UToolInitProperties& initProperties)
 
 }
 
-void UGeneratorTool::focused()
+void UGeneratorTool::gainFocus()
 {
-	Super::focused();
+	Super::gainFocus();
 
 	if(elementEditor)
 		elementEditor->setCurrentGenerator(_generator);

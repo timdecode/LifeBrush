@@ -79,7 +79,7 @@ public:
 	virtual void loseFocus();
 
 	// Called when the tool gains control.
-	virtual void focused() {}
+	virtual void gainFocus() {}
 
 	virtual void tickOneHand( float dt, UPrimitiveComponent * hand, FTransform lastToWorldTransform ) {}
 
@@ -351,7 +351,7 @@ public:
 	{
 		_loadWidgets();
 		
-		focused();
+		gainFocus();
 	}
 
 	void releaseControl()
@@ -468,15 +468,49 @@ protected:
 	TouchDirection _rightTouchStartDirection;
 };
 
-
 /**
-*
+* A tool that draws a brush sphere controlled by the trigger.
 */
-UCLASS( BlueprintType )
-class UWidgetTool : public UObject
+UCLASS(BlueprintType)
+class UBrushTool : public UTool
 {
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	UStaticMesh * brushMesh;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	UMaterialInterface * brushMeshMaterial;
+
+	// The brushMesh will be scaled by the trigger value and the scale factor. The size of the mesh component should
+	// match the brush radius.
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
+	float brushMeshScaleFactor = 2.0f;
+
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
+	float brushMinRadius = 2.0f;
+
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
+	float brushMaxRadius = 6.0f;
+
+
+public:
+	~UBrushTool();
+
+	virtual void loseFocus() override;
+
+	virtual void oneHandStart(UPrimitiveComponent * hand) override;
+	virtual void oneHandEnd(UPrimitiveComponent * hand) override;
+
+	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastToWorldTransform) override;
+
+	virtual bool shouldShowBrush() { return true; }
+
+protected:
+	void _createBrushMeshComponent(UPrimitiveComponent * selectionPoint);
+	float _brushRadius();
+
+protected:
+	UStaticMeshComponent * _brushMeshComponent = nullptr;
 };

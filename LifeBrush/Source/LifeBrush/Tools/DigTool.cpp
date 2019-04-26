@@ -93,7 +93,7 @@ void UDigTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform las
 	}
 }
 
-void UDigTool::focused()
+void UDigTool::gainFocus()
 {
 	_hideWidgets();
 	_loadWidgets();

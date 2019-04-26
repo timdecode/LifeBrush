@@ -155,7 +155,7 @@ public:
 	virtual void faceDown_touchStart() override;
 	virtual void faceDown_touchEnd() override;
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 
 	virtual void loseFocus() override;
 

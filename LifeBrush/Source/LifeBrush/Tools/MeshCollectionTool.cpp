@@ -102,7 +102,7 @@ void UMeshCollectionTool::init(FRGC_UToolInitProperties& initProperties, UCamera
 	_camera = camera;
 }
 
-void UMeshCollectionTool::focused()
+void UMeshCollectionTool::gainFocus()
 {
 	if (_collectionSpaceActor || !meshCollectionClass || !_elementEditor)
 		return;

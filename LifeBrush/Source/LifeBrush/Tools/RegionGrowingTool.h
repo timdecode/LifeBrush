@@ -53,7 +53,7 @@ public:
 };
 
 UCLASS( Blueprintable )
-class UGenerativeBrushTool : public UTool
+class UGenerativeBrushTool : public UBrushTool
 {
 	GENERATED_BODY()
 
@@ -66,26 +66,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Automatic Draw Mode")
 	float minSurfaceDistanceThreshold = 10.0f; // If we start painting within this minimum distance, we will start painting in surface mode.
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
-	UStaticMesh * brushMesh;
-
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
-	UMaterialInterface * brushMeshMaterial;
-
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor", meta = (MustImplement="GenerativeBrushToolDelegate") )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush", meta = (MustImplement="GenerativeBrushToolDelegate") )
 	TSubclassOf<class UUserWidget> widgetClass;
 
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor", meta = (MustImplement = "GenerativeBrushToolDelegate") )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush", meta = (MustImplement = "GenerativeBrushToolDelegate") )
 	TSubclassOf<class UUserWidget> selectionPointWidgetClass;
 
 	virtual TSubclassOf<class UUserWidget> getWidgetClass() { return widgetClass; }
 
 	virtual TSubclassOf<class UUserWidget> getSelectionWidgetClass() { return selectionPointWidgetClass; }
-
-	// The brushMesh will be scaled by the trigger value and the scale factor. The size of the mesh component should
-	// match the brush radius.
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )
-	float brushMeshScaleFactor = 0.01f;
 
 public:
 	UFUNCTION( BlueprintCallable, Category = Generation )
@@ -106,16 +95,10 @@ public:
 		UTool::init(initProperties);
 	}
 
-	virtual void focused() override;
-	virtual void loseFocus() override;
-
-	virtual void oneHandStart( UPrimitiveComponent * hand ) override;
-	virtual void oneHandEnd( UPrimitiveComponent * hand ) override;
+	virtual void gainFocus() override;
 
 	virtual void twoHandStart( UPrimitiveComponent * handA, UPrimitiveComponent * handB ) override {}
 	virtual void twoHandEnd( UPrimitiveComponent * handA, UPrimitiveComponent * handB ) override {}
-
-	virtual void tickOneHand( float dt, UPrimitiveComponent * hand, FTransform lastTransform ) override;
 
 	virtual void tickTwoHand
 	(
@@ -130,14 +113,6 @@ public:
 	virtual void faceUp_released(USceneComponent * interactionPoint = nullptr) override;
 
 protected:
-	float _brushRadius();
-
-	void _createBrushMeshComponent( UPrimitiveComponent * selectionPoint );
-	void _destroyBrushMeshComponent();
-
-	UPROPERTY()
-	UStaticMeshComponent * _brushMeshComponent;
-
 	EGenerativeDrawMode _drawMode = EGenerativeDrawMode::Volumetric;
 	EGenerativeTickMode _tickMode = EGenerativeTickMode::Generating;
 };
@@ -160,7 +135,7 @@ public:
 		regionGrowingComponent = initProperties.regionGrowingComponent;
 	}
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void oneHandStart( UPrimitiveComponent * hand ) override;

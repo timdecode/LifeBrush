@@ -82,7 +82,7 @@ public:
 	void spawnCollectionSpaceActor();
 
 
-	virtual void focused() override;
+	virtual void gainFocus() override;
 	virtual void loseFocus() override;
 
 	virtual void oneHandStart(UPrimitiveComponent * hand) override;

@@ -233,7 +233,7 @@ void USelectionTool::setSelectionMode( ESelectionToolMode mode )
 	}
 }
 
-void USelectionTool::focused()
+void USelectionTool::gainFocus()
 {
 	if( widgetComponent && widgetClass)
 	{
