@@ -65,6 +65,21 @@ In the simulation mode, use the Grab Tool to grab and move molecules about. You 
 - Fix the mesh tool
 - Rethink and refactor the UI
 
+# Bugs
+
+The ``FGraph`` transaction API does not support removing a component and then adding a component in the same transaction. Do not do this:
+
+```
+FGraphNode& node = ...; // our node from somewhere
+
+graph.beginTransaction();
+node.removeComponent<FGraphMesh>(graph);
+node.addComponent<FGraphMesh>(graph);
+graph.endTransaction();
+```
+
+Without the transactions, this is possible.
+
 # License and Copyright
 
 All code, unless stated otherwise, is Copyright (c) 2019, Timothy Davison. All rights reserved.
