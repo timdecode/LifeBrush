@@ -59,11 +59,10 @@ In the simulation mode, use the Grab Tool to grab and move molecules about. You 
 
 # To Do
 
-- Code examples
+- Code examples.
 - Convert this to an Unreal Plugin instead of a project. It is still a project because hot reloading in Unreal sucks for plugins.
-- Describe the mesh tool
-- Fix the mesh tool
-- Rethink and refactor the UI
+- Mesh tool documentation.
+- Rethink and refactor the UI.
 
 # Bugs
 
