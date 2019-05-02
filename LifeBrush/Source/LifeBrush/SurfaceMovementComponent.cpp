@@ -49,7 +49,7 @@ void USurfaceMovementComponent::TickComponent( float DeltaTime, ELevelTick TickT
     
     FVector position = GetOwner()->GetActorLocation();
     
-    tcodsMeshInterfaceBase::SurfacePoint nearest = meshInterface->nearestPointOnMesh(position);
+    tcodsMeshInterface::SurfacePoint nearest = meshInterface->nearestPointOnMesh(position);
     auto rotationAndNormal = meshInterface->rotationAndNormalAtIndex(nearest.surfaceIndex);
     auto frame = meshInterface->frameAtNearest(nearest);
     

@@ -777,6 +777,8 @@ void UVisualization_AgentPathLines::_tickVisibility(float deltaT)
 
 	for (FGraphMesh& mesh : meshes)
 	{
+		if( !mesh.isValid() ) continue;
+
 		FGraphNodeHandle handle(mesh.nodeIndex);
 
 		auto found = _cachedVisibility.find(handle);

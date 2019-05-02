@@ -362,7 +362,9 @@ void BVH::build(std::vector<Triangle>& objects, uint32_t leafSize_in)
     leafSize = leafSize_in;
     nNodes = 0;
     nLeafs = 0;
-    
+
+	if (objects.empty()) return;
+
     BVHBuildEntry todo[128];
     uint32_t stackptr = 0;
     const uint32_t Untouched    = 0xffffffff;

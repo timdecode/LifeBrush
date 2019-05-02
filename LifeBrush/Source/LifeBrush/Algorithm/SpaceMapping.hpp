@@ -33,7 +33,7 @@ namespace rg
 			FSurfaceIndex surfaceIndex;
         };
 
-        Mapping(tcodsMeshInterfaceBase * meshInterface_in,
+        Mapping(tcodsMeshInterface * meshInterface_in,
                        Eigen::Vector3f const & surfaceOrigin_in,
                        Eigen::Vector3f const & exemplarOrigin_in)
         {
@@ -56,7 +56,7 @@ namespace rg
 		virtual bool compareInExemplarSpace() { return true;  }
 
     protected:
-        tcodsMeshInterfaceBase * meshInterface;
+        tcodsMeshInterface * meshInterface;
         
         Eigen::Vector3f exemplarOrigin;
         Eigen::Vector3f surfaceOrigin;
@@ -65,7 +65,7 @@ namespace rg
     class SpaceMapping : public Mapping
     {
     public:
-        SpaceMapping(tcodsMeshInterfaceBase * meshInterface_in,
+        SpaceMapping(tcodsMeshInterface * meshInterface_in,
                        Eigen::Vector3f const & surfaceOrigin_in,
                        Eigen::Vector3f const & exemplarOrigin_in)
         : Mapping(meshInterface_in, surfaceOrigin_in, exemplarOrigin_in)
@@ -98,7 +98,7 @@ namespace rg
     class SurfaceMapping : public Mapping
     {
     public:
-        SurfaceMapping(tcodsMeshInterfaceBase * meshInterface_in,
+        SurfaceMapping(tcodsMeshInterface * meshInterface_in,
                      Eigen::Vector3f const & surfaceOrigin_in,
                      Eigen::Vector3f const & exemplarOrigin_in)
         : Mapping(meshInterface_in, surfaceOrigin_in, exemplarOrigin_in)
@@ -132,7 +132,7 @@ namespace rg
             toExemplarRotation = toSurfaceRotation.Inverse();
         }
         
-        SurfaceMapping(tcodsMeshInterfaceBase * meshInterface_in,
+        SurfaceMapping(tcodsMeshInterface * meshInterface_in,
                      Eigen::Vector3f const & surfaceOrigin_in,
                      uint32_t surfaceFaceIndex_in,
 					 uint32_t sectionIndex_in,
@@ -232,12 +232,12 @@ namespace rg
     class SurfaceWalk : public Mapping
     {
     public:
-        SurfaceWalk(tcodsMeshInterfaceBase * meshInterface_in,
+        SurfaceWalk(tcodsMeshInterface * meshInterface_in,
                      Eigen::Vector3f const & surfaceOrigin_in,
                      Eigen::Vector3f const & exemplarOrigin_in)
         : Mapping(meshInterface_in, surfaceOrigin_in, exemplarOrigin_in)
         {
-            tcodsMeshInterfaceBase::SurfacePoint nearest = meshInterface->nearestPointOnMesh(unreal( surfaceOrigin_in ));			
+            tcodsMeshInterface::SurfacePoint nearest = meshInterface->nearestPointOnMesh(unreal( surfaceOrigin_in ));			
 		
 			surfaceOrigin = eigen(nearest.point);
 			_face = meshInterface->mesh(nearest.surfaceIndex.sectionIndex).faces.begin() + nearest.surfaceIndex.faceIndex;
@@ -248,7 +248,7 @@ namespace rg
          If one already has a face index, we can avoid an expensive nearestPointOnMesh lookup
          that we would get with the other constructor.
          */
-        SurfaceWalk(tcodsMeshInterfaceBase * meshInterface_in,
+        SurfaceWalk(tcodsMeshInterface * meshInterface_in,
                     Eigen::Vector3f const & surfaceOrigin_in,
                     FSurfaceIndex const & surfaceIndex_in,
                     Eigen::Vector3f const & exemplarOrigin_in)
@@ -261,7 +261,7 @@ namespace rg
 			}
 			else
 			{
-				tcodsMeshInterfaceBase::SurfacePoint nearest = meshInterface->nearestPointOnMesh(unreal(surfaceOrigin_in));
+				tcodsMeshInterface::SurfacePoint nearest = meshInterface->nearestPointOnMesh(unreal(surfaceOrigin_in));
 
 				surfaceOrigin = eigen(nearest.point);
 				_face = meshInterface->mesh(nearest.surfaceIndex.sectionIndex).faces.begin() + nearest.surfaceIndex.faceIndex;

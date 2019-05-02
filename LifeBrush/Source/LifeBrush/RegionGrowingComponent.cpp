@@ -267,7 +267,7 @@ void URegionGrowingComponent::endStretch( FVector point )
     // wait for the background thread to finish
     _generationWorker.push( []( int threadID ) mutable {} ).get();
 
-	_meshInterface->rebuildBvh();
+	_meshInterface->rebuild();
 
     // find any nearby elements
     auto& output = algorithm->output();
@@ -1411,7 +1411,7 @@ auto URegionGrowingComponent::_surfaceStartingPositions(Algorithm::AABB& limits,
 
 			auto intersection = _meshInterface->getIntersectionAndFace( worldOrigin, worldDirection );
 
-			tcodsMeshInterfaceBase::SurfacePoint& surfacePoint = intersection.second;
+			tcodsMeshInterface::SurfacePoint& surfacePoint = intersection.second;
 
 			if( intersection.first )
 				startingPositions.emplace_back( eigen(surfacePoint.point), surfacePoint.surfaceIndex );
@@ -1444,7 +1444,7 @@ auto URegionGrowingComponent::_surfaceStartingPositions(Algorithm::AABB& limits,
 					if(!intersection.first)
 						continue;
 
-					tcodsMeshInterfaceBase::SurfacePoint& surfacePoint = intersection.second;
+					tcodsMeshInterface::SurfacePoint& surfacePoint = intersection.second;
 
 					startingPositions.emplace_back(eigen(surfacePoint.point), surfacePoint.surfaceIndex);
 				}
@@ -1887,41 +1887,32 @@ bool URegionGrowingComponent::_initMeshInterface()
 	if (_meshInterface)
 		return true;
     
-	if (meshInterfaceMode == EMeshInterfaceMode::StaticMesh)
-	{
-		auto staticMeshInterface = std::make_shared<tcodsUStaticMeshInterface>();
+	_meshInterface = std::make_shared<tcodsMeshInterface>();
 
-		_meshInterface = staticMeshInterface;
-		_meshInterface->sampleSubdivisions = sampleSubdivisions;
 
-		UStaticMeshComponent * meshComponent = staticMeshComponent();
+	_meshInterface->sampleSubdivisions = sampleSubdivisions;
 
-		if (meshComponent == nullptr)
-			return false;
+	UStaticMeshComponent * meshComponent = staticMeshComponent();
 
-		UStaticMesh * uMesh = meshComponent->GetStaticMesh();
+	if (meshComponent == nullptr)
+		return false;
 
-		if (uMesh == nullptr)
-			return false;
+	UStaticMesh * uMesh = meshComponent->GetStaticMesh();
 
-		FTransform toWorld = meshComponent->GetComponentTransform();
+	if (uMesh == nullptr)
+		return false;
 
-		staticMeshInterface->buildMesh(*uMesh, toWorld, generationBoundsWorld(), meshInterfaceRuntimeMesh);
+	FTransform toWorld = meshComponent->GetComponentTransform();
 
-		meshInterfaceRuntimeMesh->SetMaterial(0, meshComponent->GetMaterial(0));
+	auto meshes = tcodsUStaticMeshBuilder::buildMeshes(*uMesh, toWorld);
 
-	}
-	else if (meshInterfaceMode == EMeshInterfaceMode::ChunkedMesh)
-	{
-		auto chunkMeshInterface = std::make_shared<tcodsChunkedGridMeshInterface>();
+	for (auto& mesh : meshes)
+		_meshInterface->addMesh(std::move(mesh));
 
-		_meshInterface = chunkMeshInterface;
+	_meshInterface->rebuild();
 
-		if (!chunkedStaticMeshActor)
-			return false;
+	meshInterfaceRuntimeMesh->SetMaterial(0, meshComponent->GetMaterial(0));
 
-		//updateMeshInterface();
-	}
 
 	return true;
 }
@@ -2421,39 +2412,44 @@ void URegionGrowingComponent::_undrawHalfEdge()
 
 void URegionGrowingComponent::updateMeshInterface()
 {
-	if (meshInterfaceMode == EMeshInterfaceMode::ChunkedMesh)
+
+	// We don't do a dynamic_cast because it is disabled by default in Unreal.
+	// It can be turned on with bUseRTTI = true in the build.cs file.
+	auto& meshInterface = *_meshInterface.get();
+
+	if ( !chunkedStaticMeshActor)
+		return;
+
+	UChunkedVolumeComponent * volumeComponent = chunkedStaticMeshActor->FindComponentByClass<UChunkedVolumeComponent>();
+
+	ChunkGrid<float>& grid = volumeComponent->grid();
+
+	auto meshes = tcodsChunkedGridMeshBuilder::buildMeshes(grid, chunkedStaticMeshActor->ActorToWorld(), volumeComponent->isoLevel);
+
+	for (auto& mesh : meshes)
 	{
-		// We don't do a dynamic_cast because it is disabled by default in Unreal.
-		// It can be turned on with bUseRTTI = true in the build.cs file.
-		tcodsChunkedGridMeshInterface * chunkInterface = StaticCast<tcodsChunkedGridMeshInterface*>(_meshInterface.get());
-
-		if ( !chunkedStaticMeshActor)
-			return;
-
-		UChunkedVolumeComponent * volumeComponent = chunkedStaticMeshActor->FindComponentByClass<UChunkedVolumeComponent>();
-
-		ChunkGrid<float>& grid = volumeComponent->grid();
-
-		chunkInterface->buildMesh(grid, chunkedStaticMeshActor->ActorToWorld(), volumeComponent->isoLevel, generationBoundsWorld(), meshInterfaceRuntimeMesh);
-
-		// set materials
-		for (auto& section : chunkInterface->_sections)
-		{
-			meshInterfaceRuntimeMesh->SetMaterial(section.first, volumeComponent->material);
-			meshInterfaceRuntimeMesh->SetMeshSectionVisible(section.first, drawSurface);
-		}
-
-		if (drawSurface)
-		{
-			URuntimeMeshComponent * volumeMesh = chunkedStaticMeshActor->FindComponentByClass<URuntimeMeshComponent>();
-
-			if (volumeMesh)
-				volumeMesh->SetVisibility(false);
-		}
-
-		_updateDirectionField();
-		_updateDrawDirectionField();
+		auto section = meshInterface.addMesh(std::move(mesh));
 	}
+
+	meshInterface.rebuild();
+
+	// set materials
+	for (auto& section : meshInterface._sections)
+	{
+		meshInterfaceRuntimeMesh->SetMaterial(section.first, volumeComponent->material);
+		meshInterfaceRuntimeMesh->SetMeshSectionVisible(section.first, drawSurface);
+	}
+
+	if (drawSurface)
+	{
+		URuntimeMeshComponent * volumeMesh = chunkedStaticMeshActor->FindComponentByClass<URuntimeMeshComponent>();
+
+		if (volumeMesh)
+			volumeMesh->SetVisibility(false);
+	}
+
+	_updateDirectionField();
+	_updateDrawDirectionField();
 }
 
 ASimulationSnapshotActor* URegionGrowingComponent::createGraphicalSnapshotActor(UWorld * targetWorld)

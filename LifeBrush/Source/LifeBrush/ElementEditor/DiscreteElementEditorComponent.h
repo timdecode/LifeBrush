@@ -11,7 +11,6 @@
 #include "Algorithm/SynthesisContext.h"
 #include "ShipEditorSimulation/ObjectSimulation.h"
 #include "Simulation/FlexElements.h"
-#include "MeshInterfaceMode.h"
 
 
 #include "DiscreteElementEditorComponent.generated.h"
@@ -43,9 +42,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	FNvFlexParameters flexParams;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	EMeshInterfaceMode meshInterfaceMode = EMeshInterfaceMode::ChunkedMesh;
-
 protected:
 	UElementGenerator * _generator;
 
@@ -60,6 +56,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "ComponentTick")
 	struct FActorComponentTickFunction PostPhysicsTick;
+
+
 
 public:
 	UDiscreteElementEditorComponent();
@@ -87,13 +85,11 @@ public:
 
 	void loadElementDomain(FGraphSnapshot& toLoad);
 
-	void updateMeshInterface(UChunkedVolumeComponent * chunkVolume);
 
 protected:
 	void _initContextAndGraph();
 
 	void _init();
-	void _initMeshInterface();
 
 	virtual void RegisterComponentTickFunctions(bool bRegister) override;
 

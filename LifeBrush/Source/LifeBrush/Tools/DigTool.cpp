@@ -14,8 +14,7 @@ void UDigTool::init(FRGC_UToolInitProperties& initProperties, UCameraComponent *
 {
 	UTool::init(initProperties);
 
-	regionGrowingComponent = initProperties.regionGrowingComponent;
-	editorComponent = initProperties.editor;
+	flexComponent = initProperties.flexSimulation;
 
 	_kernel = _gaussianKernel( 5 );
 	_camera = camera;
@@ -72,7 +71,7 @@ void UDigTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform las
 	{
 		UChunkedVolumeComponent * volume = *iterator;
 
-		if(!volume || volume->GetWorld() != editorComponent->GetWorld())
+		if(!volume || volume->GetWorld() != flexComponent->GetWorld())
 			continue;
 
 		FTransform transform = volume->GetOwner()->GetRootComponent()->GetComponentToWorld();
@@ -93,6 +92,23 @@ void UDigTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform las
 	}
 }
 
+void UDigTool::_setRMCVisibility(bool visibile)
+{
+	// show all the volumes
+	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator)
+	{
+		UChunkedVolumeComponent * volume = *iterator;
+
+		if (!volume || volume->GetWorld() != flexComponent->GetWorld())
+			continue;
+
+		URuntimeMeshComponent * rmc = volume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
+
+		if (rmc)
+			rmc->SetVisibility(visibile);
+	}
+}
+
 void UDigTool::gainFocus()
 {
 	_hideWidgets();
@@ -101,20 +117,7 @@ void UDigTool::gainFocus()
 	_notifyDidModeDelegates( _digMode, _digMode );
 	_notifyDigToolDelegates();
 
-	// show all the volumes
-	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator)
-	{
-		UChunkedVolumeComponent * volume = *iterator;
-
-		if (!volume || volume->GetWorld() != editorComponent->GetWorld())
-			continue;
-
-		URuntimeMeshComponent * rmc = volume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
-
-		if (rmc)
-			rmc->SetVisibility(true);
-	}
-
+	_setRMCVisibility(true);
 }
 
 void UDigTool::loseFocus()
@@ -126,6 +129,8 @@ void UDigTool::loseFocus()
 		popupActor->Destroy();
 		popupActor = nullptr;
 	}
+
+	_setRMCVisibility(false);
 }
 
 void UDigTool::faceDown_released()
@@ -133,64 +138,13 @@ void UDigTool::faceDown_released()
 	if (!developerMode)
 		return;
 
-	editorComponent->updateMeshInterface(_lastVolume);
+	flexComponent->updateMeshInterface(_lastVolume);
 }
 
 
 
 void UDigTool::faceUp_released( USceneComponent * interactionPoint /* = nullptr */ )
 {
-	//setDigMode( EDigMode::Smoothing );
-
-	if (!developerMode)
-		return;
-
-	// save a mesh to an actor for each chunk
-	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator)
-	{
-		UChunkedVolumeComponent * volume = *iterator;
-
-		if (!volume || volume->GetWorld() != editorComponent->GetWorld())
-			continue;
-
-		URuntimeMeshComponent * oldRMC = volume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
-
-		if (!oldRMC)
-			continue;;
-
-		FTransform transform = volume->GetOwner()->GetRootComponent()->GetComponentToWorld();
-
-		FVector volumePosition = transform.InverseTransformPosition(interactionPoint->GetComponentLocation());
-
-		AActor * newActor = GetWorld()->SpawnActor<AActor>();
-
-		{
-			URuntimeMeshComponent * trimmedRMC = NewObject<URuntimeMeshComponent>(newActor);
-
-			trimmedRMC->SetShouldSerializeMeshData(true);
-
-			tcodsChunkedGridMeshInterface tempGridInterface;
-
-			tempGridInterface.buildMesh(volume->grid(), transform, volume->isoLevel, editorComponent->context->limits, trimmedRMC);
-
-			newActor->AddInstanceComponent(trimmedRMC);
-
-			trimmedRMC->RegisterComponent();
-		}
-
-		{
-			URuntimeMeshComponent * fullRMC = NewObject<URuntimeMeshComponent>(newActor);
-
-			fullRMC->SetRuntimeMesh(oldRMC->GetRuntimeMesh());
-			fullRMC->SetShouldSerializeMeshData(true);
-
-			newActor->AddInstanceComponent(fullRMC);
-
-			fullRMC->RegisterComponent();
-		}
-	}
-
-
 }
 
 void UDigTool::faceLeft_released()
@@ -335,7 +289,7 @@ FString UDigTool::_actorLabelByDate(FString baseName)
 
 void UDigTool::SaveMeshToScene()
 {
-	editorComponent->updateMeshInterface(_lastVolume);
+	flexComponent->updateMeshInterface(_lastVolume);
 
 	if (popupActor)
 	{

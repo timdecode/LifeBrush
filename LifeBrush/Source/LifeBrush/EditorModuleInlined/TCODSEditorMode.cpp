@@ -818,7 +818,7 @@ bool FTCODSEditorMode::_sketchSelectUpdate( FEditorViewportClient* InViewportCli
 	if(!hit.first)
 		return true;
 
-	tcodsMeshInterfaceBase::SurfacePoint& surfacePoint = hit.second;
+	tcodsMeshInterface::SurfacePoint& surfacePoint = hit.second;
 
 	UWorld * world = grower->GetWorld();
 
@@ -903,7 +903,7 @@ bool FTCODSEditorMode::_eraseUpdate( FEditorViewportClient* InViewportClient, FV
 	if(!hit.first)
 		return false;
 
-	tcodsMeshInterfaceBase::SurfacePoint& surfacePoint = hit.second;
+	tcodsMeshInterface::SurfacePoint& surfacePoint = hit.second;
 
 	_regionGrower->eraseAt( surfacePoint.point, surfacePoint.surfaceIndex );
 

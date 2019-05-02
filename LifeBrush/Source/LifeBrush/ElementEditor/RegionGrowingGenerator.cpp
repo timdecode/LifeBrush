@@ -63,6 +63,7 @@ void URegionGrowingGenerator::detach()
 		_generationWorkerMainThreadWork = nullptr;
 	}
 
+	_generationWorkFinished = true;
 
 	// hack set the static positions
 	auto& staticPositions = _outputContext->graph().componentStorage<FStaticPositionObject>();
@@ -86,7 +87,6 @@ void URegionGrowingGenerator::tick(float deltaT)
 	if (!_generationWorkFinished)
 		return;
 
-	_generationWorkFinished = false;
 
 	if (_generationWorkerMainThreadWork)
 	{
@@ -115,6 +115,8 @@ void URegionGrowingGenerator::tick(float deltaT)
 	// short circuit
 	if (pauseSynthesis)
 		return;
+
+	_generationWorkFinished = false;
 	
 	Algorithm::AABB limits;
 	limits.aabb.min() = eigen(_outputContext->limits.Min);
@@ -197,6 +199,8 @@ void URegionGrowingGenerator::stop()
 	_generationWorker.push([](int threadID) mutable {}).get();
 
 	pauseSynthesis = true;
+
+	_generationWorkFinished = true;
 }
 
 void URegionGrowingGenerator::beginBrushPath(FVector point, float radius, FSurfaceIndex surfaceIndex)
@@ -318,7 +322,7 @@ void URegionGrowingGenerator::syncExemplarFromElementActors()
 
 	auto& exemplarDomain = _algorithm->exemplar();
 
-	exemplarDomain.graph.beginTransaction();
+	//exemplarDomain.graph.beginTransaction();
 
 	std::map<URegionGrowingComponent::ElementTypeDescription, int, URegionGrowingComponent::InferredElementTypeDescriptionComparator> actorToTypes;
 
@@ -424,7 +428,7 @@ void URegionGrowingGenerator::syncExemplarFromElementActors()
 		}
 	}
 
-	exemplarDomain.graph.endTransaction();
+	//exemplarDomain.graph.endTransaction();
 }
 
 

@@ -116,6 +116,8 @@ void AVRSketchyPawn::BeginPlay()
 
 	_initTools();
 
+	_initSimulation_oneTime();
+
 	if (_interactionMode == ESketchyInteractionMode::Painting && editorComponent)
 		editorComponent->start();
 }
@@ -230,6 +232,7 @@ void AVRSketchyPawn::_initTools()
 	// init the tools
 	FRGC_UToolInitProperties initProperties;
 	initProperties.editor = editorComponent;
+	initProperties.flexSimulation = flexComponent;
 	initProperties.leftSelectionPoint = leftInteractionPoint;
 	initProperties.rightSelectionPoint = rightInteractionPoint;
 	initProperties.toolDelegate = this;
@@ -580,6 +583,8 @@ void AVRSketchyPawn::_initSimulation_oneTime()
 
 		flexComponent->init(editorComponent->context->meshInterface, meshInterfaceToWorld, camera);
 	}
+
+	_didInitSimulation = true;
 }
 
 void AVRSketchyPawn::_initSimulationBounds()

@@ -410,7 +410,7 @@ public:
 	
 	void setThreadPool(std::shared_ptr<ctpl::thread_pool> threadPool) { _context.threadPool = threadPool; }
     void setOcclusionTester(std::shared_ptr<OcclusionBase> const& occlusionTester);
-	void setMeshInterface(std::shared_ptr<tcodsMeshInterfaceBase> meshInterface);
+	void setMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterface);
 	void setToMeshTransform(const Eigen::Affine3f& transform);
 	
 	Domain& exemplar() { return _exemplar; }

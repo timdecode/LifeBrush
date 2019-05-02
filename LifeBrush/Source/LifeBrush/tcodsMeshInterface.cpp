@@ -39,10 +39,280 @@
 #include <map>
 #include <algorithm>
 
+// The class prototypes.
+using namespace vcg;
+using namespace tri;
+
+// forward declarations
+class CFace;
+class CVertex;
+class CHEdge;
+class CEdge;
+class MyPolyVertex;
+
+struct CUsedTypes : public vcg::UsedTypes< vcg::Use<CVertex>::AsVertexType, vcg::Use<CFace>::AsFaceType > {};
+
+// Mesh of triangles
+class CVertex : public Vertex<
+	CUsedTypes,
+	vertex::BitFlags,
+	vertex::Coord3f,
+	vertex::Normal3f,
+	vertex::TexCoord2f,
+	vertex::VFAdj
+> {};
+
+class CFace : public Face<
+	CUsedTypes,
+	face::VertexRef,
+	face::Normal3f,
+	face::BitFlags,
+	face::FFAdj,
+	face::VFAdj
+> {};
+
+class MyMesh : public vcg::tri::TriMesh< std::vector<CVertex>, std::vector<CFace> > {};
+
+FVector unreal(const vcg::Point3f& p)
+{
+	return FVector(p.X(), p.Y(), p.Z());
+}
+
+FVector2D unreal(const vcg::Point2f& p)
+{
+	return FVector2D(p.X(), p.Y());
+}
+
+FVector2D unreal(const vcg::TexCoord2f& p)
+{
+	return FVector2D(p.U(), p.V());
+}
+
+DDG::Vector to_tcods(const vcg::Point3f& p)
+{
+	return DDG::Vector(p.X(), p.Y(), p.Z());
+}
+
+DDG::Vector to_tcods(const vcg::Point2f& p)
+{
+	return DDG::Vector(p.X(), p.Y(), 0.0f);
+}
+
+DDG::Vector to_tcods(const vcg::TexCoord2f& p)
+{
+	return DDG::Vector(p.U(), p.V(), 0.0f);
+}
 
 
 
-auto tcodsMeshInterfaceBase::indexOfVertex(const FVector& uStaticMeshVertex, int32& index_out) -> bool
+std::unique_ptr<MyMesh> _toMyMesh(SmoothMeshFactory& meshFactory)
+{
+	std::unique_ptr<MyMesh> result = std::make_unique<MyMesh>();
+
+	MyMesh& myMesh = *result;
+
+	int32 nv = meshFactory.vertices.Num();
+	int32 ni = meshFactory.indices.Num();
+
+	MyMesh::VertexIterator vi = vcg::tri::Allocator<MyMesh>::AddVertices(myMesh, nv);
+	MyMesh::FaceIterator fi = vcg::tri::Allocator<MyMesh>::AddFaces(myMesh, ni / 3);
+
+	std::vector<MyMesh::VertexPointer> vertexPointers;
+	vertexPointers.reserve(meshFactory.vertices.Num());
+
+	for (int i = 0; i < ni; ++i)
+	{
+		auto& vertex = meshFactory.vertices[i];
+		auto& normal = meshFactory.normals.Num() > i ? meshFactory.normals[i] : FVector::ZeroVector;
+		auto& texcoord = meshFactory.uvs.Num() > i ? meshFactory.uvs[i] : FVector2D::ZeroVector;
+
+		vertexPointers.push_back(&*vi);
+
+		vi->P() = MyMesh::CoordType(&vertex.X);
+		vi->T() = vcg::TexCoord2f(texcoord.X, texcoord.Y);
+		vi->N() = MyMesh::CoordType(&normal.X);
+
+		++vi;
+	}
+
+	for (int i = 0; i < ni; i += 3)
+	{
+		int32* triangle = &meshFactory.indices[i];
+
+		fi->V(0) = vertexPointers[triangle[0]];
+		fi->V(1) = vertexPointers[triangle[1]];
+		fi->V(2) = vertexPointers[triangle[2]];
+
+		++fi;
+	}
+
+	return result;
+}
+
+
+std::unique_ptr<MyMesh> _toMyMesh(tcods::MeshIO::MeshData& meshData)
+{
+	std::unique_ptr<MyMesh> result = std::make_unique<MyMesh>();
+
+	MyMesh& myMesh = *result;
+
+	int32 nv = meshData.positions.size();
+	int32 nf = meshData.indices.size();
+
+	MyMesh::VertexIterator vi = vcg::tri::Allocator<MyMesh>::AddVertices(myMesh, nv);
+	MyMesh::FaceIterator fi = vcg::tri::Allocator<MyMesh>::AddFaces(myMesh, nf);
+
+	std::vector<MyMesh::VertexPointer> vertexPointers;
+	vertexPointers.reserve(nv);
+
+	for (int i = 0; i < nv; ++i)
+	{
+		FVector vertex = unreal(meshData.positions[i]);
+		FVector normal = meshData.normals.size() > i ? unreal(meshData.normals[i]) : FVector::ZeroVector;
+		FVector2D texcoord = FVector2D::ZeroVector;
+
+		vertexPointers.push_back(&*vi);
+
+		vi->P() = MyMesh::CoordType(&vertex.X);
+		vi->T() = vcg::TexCoord2f(texcoord.X, texcoord.Y);
+		vi->N() = MyMesh::CoordType(&normal.X);
+
+		++vi;
+	}
+
+	for (int i = 0; i < nf; i++)
+	{
+		auto& triangle = meshData.indices[i];
+
+		fi->V(0) = vertexPointers[triangle[0].position];
+		fi->V(1) = vertexPointers[triangle[1].position];
+		fi->V(2) = vertexPointers[triangle[2].position];
+
+		++fi;
+	}
+
+	return result;
+}
+
+SmoothMeshFactory _toMeshFactory(MyMesh& mesh)
+{
+	SmoothMeshFactory factory;
+
+	auto& vertices = factory.vertices;
+	auto& normals = factory.normals;
+	auto& uvs = factory.uvs;
+	auto& indices = factory.indices;
+
+	// reserve space
+	vertices.Reserve(mesh.VN());
+	normals.Reserve(mesh.VN());
+	uvs.Reserve(mesh.VN());
+	indices.Reserve(mesh.FN() * 3);
+
+	// map past deleted vertices
+	std::vector<int> toExportedVertexIndices(mesh.vert.size());
+
+	// export vertices
+	int vi = 0;
+	for (auto& vertex : mesh.vert)
+	{
+		if (vertex.IsD())
+		{
+			vi++;
+			continue;
+		}
+
+		toExportedVertexIndices[vi] = vertices.Num();
+
+		vertices.Add(unreal(vertex.P()));
+		normals.Add(unreal(vertex.N()));
+		uvs.Add(unreal(vertex.T()));
+
+		vi++;
+	}
+
+	// export face indices
+	for (auto& fi : mesh.face)
+	{
+		if (fi.IsD())
+			continue;
+
+		auto vi0 = vcg::tri::Index(mesh, fi.V(0));
+		auto vi1 = vcg::tri::Index(mesh, fi.V(1));
+		auto vi2 = vcg::tri::Index(mesh, fi.V(2));
+
+		indices.Add(toExportedVertexIndices[vi0]);
+		indices.Add(toExportedVertexIndices[vi1]);
+		indices.Add(toExportedVertexIndices[vi2]);
+	}
+
+	return factory;
+}
+
+tcods::MeshIO::MeshData _myMeshToMeshData(MyMesh& mesh)
+{
+	using namespace tcods;
+
+	MeshIO::MeshData data;
+
+	auto& vertices = data.positions;
+	auto& normals = data.normals;
+	auto& uvs = data.texcoords;
+	auto& indices = data.indices;
+
+	// reserve space
+	vertices.reserve(mesh.VN());
+	normals.reserve(mesh.VN());
+	uvs.reserve(mesh.VN());
+	indices.reserve(mesh.FN());
+
+	// map past deleted vertices
+	std::vector<int> toExportedVertexIndices(mesh.vert.size());
+
+	// export vertices
+	int vi = 0;
+	for (auto& vertex : mesh.vert)
+	{
+		if (vertex.IsD())
+		{
+			vi++;
+			continue;
+		}
+
+		toExportedVertexIndices[vi] = vertices.size();
+
+		vertices.push_back(to_tcods(vertex.P()));
+		normals.push_back(to_tcods(vertex.N()));
+		uvs.push_back(to_tcods(vertex.T()));
+
+		vi++;
+	}
+
+	// export face indices
+	for (auto& fi : mesh.face)
+	{
+		if (fi.IsD())
+			continue;
+
+		auto vi0_ = vcg::tri::Index(mesh, fi.V(0));
+		auto vi1_ = vcg::tri::Index(mesh, fi.V(1));
+		auto vi2_ = vcg::tri::Index(mesh, fi.V(2));
+
+		auto vi0 = toExportedVertexIndices[vi0_];
+		auto vi1 = toExportedVertexIndices[vi1_];
+		auto vi2 = toExportedVertexIndices[vi2_];
+
+		indices.emplace_back(std::vector< MeshIO::Index >{
+			MeshIO::Index(vi0, vi0, vi0),
+			MeshIO::Index(vi1, vi1, vi1),
+			MeshIO::Index(vi2, vi2, vi2)
+			});
+	}
+
+	return data;
+}
+
+auto tcodsMeshInterface::indexOfVertex(const FVector& uStaticMeshVertex, int32& index_out) -> bool
 {
 	auto found = _vertexLookup.find( uStaticMeshVertex );
 
@@ -54,7 +324,7 @@ auto tcodsMeshInterfaceBase::indexOfVertex(const FVector& uStaticMeshVertex, int
     return true;
 }
 
-auto tcodsMeshInterfaceBase::indexOfVertex(const FVector& uStaticMeshVertex, VertexIndex& index_out) -> bool
+auto tcodsMeshInterface::indexOfVertex(const FVector& uStaticMeshVertex, VertexIndex& index_out) -> bool
 {
 	auto found = _vertexLookup.find(uStaticMeshVertex);
 
@@ -66,12 +336,46 @@ auto tcodsMeshInterfaceBase::indexOfVertex(const FVector& uStaticMeshVertex, Ver
 	return true;
 }
 
-void tcodsMeshInterfaceBase::rebuildBvh()
+uint32_t tcodsMeshInterface::addMesh(std::unique_ptr<tcods::Mesh> mesh)
 {
-	_initBVH();
+	// find the next available section (search for the lowest unused section number)
+	uint32_t nextSection = 0;
+
+	while (true)
+	{
+		if (_sections.find(nextSection) == _sections.end())
+			break;
+
+		nextSection++;
+	}
+
+	_sections[nextSection] = std::move(mesh);
+
+	return nextSection;
 }
 
-auto tcodsMeshInterfaceBase::_countTriangles() -> size_t
+void tcodsMeshInterface::removeMesh(uint32_t section)
+{
+	_sections.erase(section);
+}
+
+void tcodsMeshInterface::setMesh(uint32_t section, std::unique_ptr<tcods::Mesh> mesh)
+{
+	_sections[section] = std::move(mesh);
+}
+
+void tcodsMeshInterface::rebuild()
+{
+	_initBVH();
+	_initNearestKDTree(_worldLimits);
+}
+
+void tcodsMeshInterface::buildRMC(URuntimeMeshComponent * rmc, bool clipToLimits /*= false*/, bool doubleSide /*= true*/)
+{
+	_buildRuntimeMesh(rmc, clipToLimits, doubleSide, _worldLimits);
+}
+
+auto tcodsMeshInterface::_countTriangles() -> size_t
 {
 	size_t count = 0;
 
@@ -83,7 +387,7 @@ auto tcodsMeshInterfaceBase::_countTriangles() -> size_t
 	return count;
 }
 
-void tcodsMeshInterfaceBase::_initBVH()
+void tcodsMeshInterface::_initBVH()
 {
     std::vector<bvh::Triangle> triangles;
     triangles.reserve(_countTriangles());
@@ -118,7 +422,7 @@ void tcodsMeshInterfaceBase::_initBVH()
 
 
 
-void tcodsMeshInterfaceBase::_initNearestKDTree(FBox limits)
+void tcodsMeshInterface::_initNearestKDTree(FBox limits)
 {
 	using namespace vcg;
 
@@ -184,7 +488,7 @@ void tcodsMeshInterfaceBase::_initNearestKDTree(FBox limits)
 	_faceTree = std::make_unique<vcg::KdTreeFace>(samples, aabb);
 }
 
-auto tcodsMeshInterfaceBase::_clear()
+auto tcodsMeshInterface::_clear()
 {
 	_sections.clear();
 
@@ -193,7 +497,7 @@ auto tcodsMeshInterfaceBase::_clear()
 }
 
 
-auto tcodsMeshInterfaceBase::nearestPointOnMesh(const FVector& point) -> SurfacePoint
+auto tcodsMeshInterface::nearestPointOnMesh(const FVector& point) -> SurfacePoint
 {
 	SurfacePoint result;
 
@@ -219,7 +523,7 @@ auto tcodsMeshInterfaceBase::nearestPointOnMesh(const FVector& point) -> Surface
 }
 
 
-void tcodsMeshInterfaceBase::_floodVisit(
+void tcodsMeshBuilderBase::_floodVisit(
 	const int32 vertex_in, 
 	const std::vector< std::vector<int32> >& verticesConnectedToVertex, 
 	std::set<int>& unvisitedVertices, 
@@ -259,7 +563,7 @@ void tcodsMeshInterfaceBase::_floodVisit(
 	} while (vertexStack.size());
 }
 
-auto tcodsMeshInterfaceBase::_extractSections(tcods::MeshIO::MeshData& data) -> std::vector<tcods::MeshIO::MeshData>
+auto tcodsMeshBuilderBase::_extractSections(tcods::MeshIO::MeshData& data) -> std::vector<tcods::MeshIO::MeshData>
 {
 	using namespace std;
 	using namespace tcods;
@@ -384,7 +688,37 @@ auto tcodsMeshInterfaceBase::_extractSections(tcods::MeshIO::MeshData& data) -> 
 	return result;
 }
 
-void tcodsMeshInterfaceBase::_buildRuntimeMeshSection(URuntimeMeshComponent * runtimeMesh, tcods::Mesh& mesh, uint32_t section, FTransform transform, bool clipToLimits, FBox limits)
+void tcodsMeshBuilderBase::_clean(MyMesh * myMesh)
+{
+	typedef vcg::tri::Clean<MyMesh> Cleaner;
+
+	int removedDegenerateFaces = Cleaner::RemoveDuplicateFace(*myMesh);
+	int removedDuplicateFaces = Cleaner::RemoveDuplicateFace(*myMesh);
+	int removedDuplicateVertices = Cleaner::RemoveDuplicateVertex(*myMesh);
+	int removedUnreferencedVertices = Cleaner::RemoveUnreferencedVertex(*myMesh);
+	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
+
+	int removedNonManifoldFaces = Cleaner::RemoveNonManifoldFace(*myMesh);
+	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
+
+	int removedNonManifoldVertices = Cleaner::RemoveNonManifoldVertex(*myMesh);
+	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
+
+	removedUnreferencedVertices += Cleaner::RemoveUnreferencedVertex(*myMesh);
+	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
+
+	vcg::tri::Allocator<MyMesh>::CompactEveryVector(*myMesh);
+}
+
+
+void tcodsMeshInterface::buildRuntimeMeshSection(
+	URuntimeMeshComponent * runtimeMesh, 
+	tcods::Mesh& mesh, 
+	uint32_t section, 
+	FTransform transform, 
+	bool clipToLimits /*= true*/, 
+	bool doubleSide /*= true*/, 
+	FBox limits /*= FBox()*/)
 {
 	// create a runtime static mesh directly from the tcods half-edge data structure so that our face indices are in sync
 	TArray<FVector> runtimePositions;
@@ -454,34 +788,41 @@ void tcodsMeshInterfaceBase::_buildRuntimeMeshSection(URuntimeMeshComponent * ru
 			} while (halfEdge != face.he);
 
 			check(ti <= 3);
-
-			runtimeTriangles.Add(fi + 0);
-			runtimeTriangles.Add(fi + 1);
-			runtimeTriangles.Add(fi + 2);
-
-			fi += 3;
-
-
-			// we need flipped normals for the other way
-			int32 base = runtimePositions.Num() - 1;
-
-			for (int c = 0; c < 3; ++c)
+			
+			// add side a
 			{
-				auto n = -normals[base - c];
-				normals.Add(n);
+				runtimeTriangles.Add(fi + 0);
+				runtimeTriangles.Add(fi + 1);
+				runtimeTriangles.Add(fi + 2);
 
-				auto p = runtimePositions[base - c];
-				runtimePositions.Add(p);
-
-				auto u = uvs[base - c];
-				uvs.Add(u);
+				fi += 3;
 			}
 
-			runtimeTriangles.Add(fi + 0);
-			runtimeTriangles.Add(fi + 1);
-			runtimeTriangles.Add(fi + 2);
+			// add side b
+			if (doubleSide)
+			{
+				// we need flipped normals for the other way
+				int32 base = runtimePositions.Num() - 1;
 
-			fi += 3;
+				for (int c = 0; c < 3; ++c)
+				{
+					auto n = -normals[base - c];
+					normals.Add(n);
+
+					auto p = runtimePositions[base - c];
+					runtimePositions.Add(p);
+
+					auto u = uvs[base - c];
+					uvs.Add(u);
+				}
+
+				runtimeTriangles.Add(fi + 0);
+				runtimeTriangles.Add(fi + 1);
+				runtimeTriangles.Add(fi + 2);
+
+				fi += 3;
+			}
+
 		}
 	}
 
@@ -489,7 +830,7 @@ void tcodsMeshInterfaceBase::_buildRuntimeMeshSection(URuntimeMeshComponent * ru
 	runtimeMesh->CreateMeshSection(section, runtimePositions, runtimeTriangles, normals, uvs, TArray<FColor>() /* colors */, TArray<FRuntimeMeshTangent>(), false, EUpdateFrequency::Frequent);
 }
 
-void tcodsMeshInterfaceBase::_buildRuntimeMesh(URuntimeMeshComponent * runtimeMesh, bool clipToLimits, FBox limits)
+void tcodsMeshInterface::_buildRuntimeMesh(URuntimeMeshComponent * runtimeMesh, bool clipToLimits /*= true*/, bool doubleSide /*= true*/, FBox limits /*= FBox(EForceInit::ForceInitToZero)*/)
 {
 	using namespace tcods;
 
@@ -502,7 +843,7 @@ void tcodsMeshInterfaceBase::_buildRuntimeMesh(URuntimeMeshComponent * runtimeMe
 		Mesh& mesh = *pair.second.get();
 		uint32_t section = pair.first;
 
-		_buildRuntimeMeshSection(runtimeMesh, mesh, section, transform, clipToLimits, limits);
+		buildRuntimeMeshSection(runtimeMesh, mesh, section, transform, clipToLimits, doubleSide, limits);
 	}
 
 }
@@ -511,18 +852,16 @@ void tcodsMeshInterfaceBase::_buildRuntimeMesh(URuntimeMeshComponent * runtimeMe
 // tcodsUStaticMeshInterface
 // ---------------------------------------------------------
 
-auto tcodsUStaticMeshInterface::_toMeshData(UStaticMesh& uMesh, const FTransform toWorld) -> MeshDataAndVertexLookup
+auto tcodsUStaticMeshBuilder::_toMeshData(UStaticMesh& uMesh, const FTransform toWorld) -> tcods::MeshIO::MeshData
 {
 	using namespace tcods;
 
-	MeshDataAndVertexLookup result;
-
-	MeshIO::MeshData& data = result.meshData;
-	std::unordered_map<FVector, VertexIndex>& vertexLookup = result.vertexLookup;
+	MeshIO::MeshData data;
+	std::unordered_map<FVector, tcodsMeshInterface::VertexIndex> vertexLookup;
 
 
-	if (uMesh.RenderData == nullptr) return result;
-	if (uMesh.RenderData->LODResources.Num() == 0) return result;
+	if (uMesh.RenderData == nullptr) return data;
+	if (uMesh.RenderData->LODResources.Num() == 0) return data;
 
 
 	// build the TCODS half-edge data structure
@@ -606,39 +945,35 @@ auto tcodsUStaticMeshInterface::_toMeshData(UStaticMesh& uMesh, const FTransform
 		indices.push_back(face);
 	}
 
-	return result;
+	return data;
 }
 
-
-auto tcodsUStaticMeshInterface::buildMesh(
+auto tcodsUStaticMeshBuilder::buildMeshes(
 	UStaticMesh& uMesh,
-	const FTransform& toWorld,
-	FBox worldLimits,
-	URuntimeMeshComponent * runtimeMesh) -> bool
+	const FTransform toWorld) -> std::vector<std::unique_ptr<tcods::Mesh>>
 {
 	using namespace tcods;
 
-	_clear();
+	std::vector<std::unique_ptr<tcods::Mesh>> meshes;
 
-	_worldLimits = worldLimits;
+	tcods::MeshIO::MeshData wholeData = _toMeshData(uMesh, toWorld);
 
-	if(runtimeMesh) runtimeMesh->ClearAllMeshSections();
-
-	MeshDataAndVertexLookup wholeMeshDataAndLookup = _toMeshData(uMesh, toWorld);
-
-	MeshIO::MeshData& wholeData = wholeMeshDataAndLookup.meshData;
-	_vertexLookup = wholeMeshDataAndLookup.vertexLookup;
-
-
+	
 	// process into sections
 	std::vector<MeshIO::MeshData> extractedSectionData = _extractSections(wholeData);
+
 
 	int32 sectionIndex = 0;
 
 	for( MeshIO::MeshData& sectionData : extractedSectionData)
 	{
-		_sections[sectionIndex] = std::make_unique<Mesh>();
-		Mesh& mesh = *_sections[sectionIndex].get();
+		auto myMesh = _toMyMesh(sectionData);
+		_clean(myMesh.get());
+		sectionData = _myMeshToMeshData(*myMesh.get());
+
+		meshes.push_back(std::make_unique<Mesh>());
+		Mesh& mesh = *meshes.back().get();
+
 
 		MeshIO::buildMesh(sectionData, mesh);
 
@@ -649,41 +984,27 @@ auto tcodsUStaticMeshInterface::buildMesh(
 		sectionIndex++;
 	}
 
-	if( runtimeMesh ) _buildRuntimeMesh(runtimeMesh, false, worldLimits);
-
-	_initBVH();
-	_initNearestKDTree(worldLimits);
-
-	return true;
+	return meshes;
 }
-
-
 
 // ---------------------------------------------------------
 // tcodsChunkedGridMeshInterface
 // ---------------------------------------------------------
 
 
-void tcodsChunkedGridMeshInterface::buildMesh(ChunkGrid<float>& chunkGrid, const FTransform& toWorld, float isoLevel, FBox worldLimits, URuntimeMeshComponent * runtimeMesh)
+auto tcodsChunkedGridMeshBuilder::buildMeshes(
+	ChunkGrid<float>& chunkGrid,
+	const FTransform& toWorld, 
+	float isoLevel)->std::vector<std::unique_ptr<tcods::Mesh>>
 {
-	_clear();
-
-	_worldLimits = worldLimits;
-
 	auto mergedData = _toMergedMeshData(chunkGrid, isoLevel, toWorld);
 
-	_buildSectionsFromMeshData(mergedData);
+	auto meshes = _buildSectionsFromMeshData(mergedData);
 
-	if (runtimeMesh)
-	{
-		_buildRuntimeMesh(runtimeMesh, true, worldLimits);
-	}
-
-	_initBVH();
-	_initNearestKDTree(worldLimits);
+	return meshes;
 }
 
-tcods::MeshIO::MeshData tcodsChunkedGridMeshInterface::_toTcods(SmoothMeshFactory& factory)
+tcods::MeshIO::MeshData tcodsChunkedGridMeshBuilder::_toTcods(SmoothMeshFactory& factory)
 {
 	using namespace tcods;
 	using namespace DDG;
@@ -728,7 +1049,7 @@ tcods::MeshIO::MeshData tcodsChunkedGridMeshInterface::_toTcods(SmoothMeshFactor
 }
 
 
-auto tcodsChunkedGridMeshInterface::_toMergedMeshData(ChunkGrid<float> &chunkGrid, float isoLevel, FTransform toWorld) -> tcods::MeshIO::MeshData
+auto tcodsChunkedGridMeshBuilder::_toMergedMeshData(ChunkGrid<float> &chunkGrid, float isoLevel, FTransform toWorld) -> tcods::MeshIO::MeshData
 {
 	using namespace tcods;
 	using namespace DDG;
@@ -759,16 +1080,16 @@ auto tcodsChunkedGridMeshInterface::_toMergedMeshData(ChunkGrid<float> &chunkGri
 	}
 
 	// remove duplicates
-	mergedFactory = _clean(mergedFactory);
-	//mergedFactory = mergedFactory.createMesh_mergeNearbyVertices(0.1f);
-	//mergedFactory.removeDuplicateFaces();
+	auto myMesh = _toMyMesh(mergedFactory);
 
-	tcods::MeshIO::MeshData mergedData = _toTcods(mergedFactory);
+	_clean(myMesh.get());
+
+	tcods::MeshIO::MeshData mergedData = _myMeshToMeshData(*myMesh.get());
 
 	return mergedData;
 }
 
-void tcodsChunkedGridMeshInterface::_buildSectionsFromMeshData(tcods::MeshIO::MeshData& data)
+auto tcodsChunkedGridMeshBuilder::_buildSectionsFromMeshData(tcods::MeshIO::MeshData& data) -> std::vector<std::unique_ptr<tcods::Mesh>>
 {
 	using namespace tcods;
 	using namespace DDG;
@@ -776,18 +1097,19 @@ void tcodsChunkedGridMeshInterface::_buildSectionsFromMeshData(tcods::MeshIO::Me
 
 	std::vector<MeshIO::MeshData> dataSections = _extractSections(data);
 
+	std::vector<std::unique_ptr<tcods::Mesh>> meshes;
+
 	// now build a mesh for each section
-	uint32_t sectionIndex = 0;
 	for (MeshIO::MeshData& sectionData : dataSections)
 	{
-		_sections[sectionIndex] = std::make_unique<Mesh>();
+		meshes.push_back(std::make_unique<Mesh>());
 
-		Mesh& sectionMesh = *_sections[sectionIndex].get();
+		Mesh& sectionMesh = *meshes.back().get();
 
 		int32 errorCode = MeshIO::buildMesh(sectionData, sectionMesh);
 		if (errorCode > 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("_buildMeshFromMeshData bad mesh. Section %d code %d"), sectionIndex, errorCode);
+			UE_LOG(LogTemp, Warning, TEXT("_buildMeshFromMeshData bad mesh. code %d"), errorCode);
 
 			bool hasIsolated = MeshIO::hasIsolatedVertices(sectionMesh);
 			bool hasNonManifold = MeshIO::hasNonManifoldVertices(sectionMesh);
@@ -797,185 +1119,13 @@ void tcodsChunkedGridMeshInterface::_buildSectionsFromMeshData(tcods::MeshIO::Me
 
 		sectionMesh.topologyChange();
 		sectionMesh.geometryChange();
-
-		sectionIndex++;
-	}
-}
-
-// The class prototypes.
-using namespace vcg;
-using namespace tri;
-
-// forward declarations
-class CFace;
-class CVertex;
-class CHEdge;
-class CEdge;
-class MyPolyVertex;
-
-struct CUsedTypes : public vcg::UsedTypes< vcg::Use<CVertex>::AsVertexType, vcg::Use<CFace>::AsFaceType > {};
-
-// Mesh of triangles
-class CVertex : public Vertex<
-	CUsedTypes,
-	vertex::BitFlags,
-	vertex::Coord3f,
-	vertex::Normal3f,
-	vertex::TexCoord2f,
-	vertex::VFAdj
-> {};
-
-class CFace : public Face<
-	CUsedTypes,
-	face::VertexRef,
-	face::Normal3f,
-	face::BitFlags,
-	face::FFAdj,
-	face::VFAdj
-> {};
-
-class MyMesh : public vcg::tri::TriMesh< std::vector<CVertex>, std::vector<CFace> > {};
-
-
-std::unique_ptr<MyMesh> _toMyMesh(SmoothMeshFactory& meshFactory)
-{
-	std::unique_ptr<MyMesh> result = std::make_unique<MyMesh>();
-
-	MyMesh& myMesh = *result;
-
-	int32 nv = meshFactory.vertices.Num();
-	int32 ni = meshFactory.indices.Num();
-
-	MyMesh::VertexIterator vi = vcg::tri::Allocator<MyMesh>::AddVertices(myMesh, nv);
-	MyMesh::FaceIterator fi = vcg::tri::Allocator<MyMesh>::AddFaces(myMesh, ni / 3);
-
-	std::vector<MyMesh::VertexPointer> vertexPointers;
-	vertexPointers.reserve(meshFactory.vertices.Num());
-
-	for (int i = 0; i < ni; ++i)
-	{
-		auto& vertex = meshFactory.vertices[i];
-		auto& normal = meshFactory.normals.Num() > i ? meshFactory.normals[i] : FVector::ZeroVector;
-		auto& texcoord = meshFactory.uvs.Num() > i ? meshFactory.uvs[i] : FVector2D::ZeroVector;
-
-		vertexPointers.push_back(&*vi);
-
-		vi->P() = MyMesh::CoordType(&vertex.X);
-		vi->T() = vcg::TexCoord2f(texcoord.X, texcoord.Y);
-		vi->N() = MyMesh::CoordType(&normal.X);
-
-		++vi;
 	}
 
-	for (int i = 0; i < ni; i += 3)
-	{
-		int32* triangle = &meshFactory.indices[i];
-
-		fi->V(0) = vertexPointers[triangle[0]];
-		fi->V(1) = vertexPointers[triangle[1]];
-		fi->V(2) = vertexPointers[triangle[2]];
-
-		++fi;
-	}
-
-	return result;
+	return meshes;
 }
 
-FVector unreal(const vcg::Point3f& p)
-{
-	return FVector(p.X(), p.Y(), p.Z());
-}
 
-FVector2D unreal(const vcg::Point2f& p)
-{
-	return FVector2D(p.X(), p.Y());
-}
 
-FVector2D unreal(const vcg::TexCoord2f& p)
-{
-	return FVector2D(p.U(), p.V());
-}
-
-SmoothMeshFactory _toMeshFactory(MyMesh& mesh)
-{
-	SmoothMeshFactory factory;
-
-	auto& vertices = factory.vertices;
-	auto& normals = factory.normals;
-	auto& uvs = factory.uvs;
-	auto& indices = factory.indices;
-
-	// reserve space
-	vertices.Reserve(mesh.VN());
-	normals.Reserve(mesh.VN());
-	uvs.Reserve(mesh.VN());
-	indices.Reserve(mesh.FN() * 3);
-
-	// map past deleted vertices
-	std::vector<int> toExportedVertexIndices(mesh.vert.size());
-
-	// export vertices
-	int vi = 0;
-	for (auto& vertex : mesh.vert)
-	{
-		if (vertex.IsD())
-		{
-			vi++;
-			continue;
-		}
-
-		toExportedVertexIndices[vi] = vertices.Num();
-
-		vertices.Add(unreal(vertex.P()));
-		normals.Add(unreal(vertex.N()));
-		uvs.Add(unreal(vertex.T()));
-
-		vi++;
-	}
-
-	// export face indices
-	for (auto& fi : mesh.face)
-	{
-		if(fi.IsD())
-			continue;
-
-		auto vi0 = vcg::tri::Index(mesh, fi.V(0));
-		auto vi1 = vcg::tri::Index(mesh, fi.V(1));
-		auto vi2 = vcg::tri::Index(mesh, fi.V(2));
-
-		indices.Add(toExportedVertexIndices[vi0]);
-		indices.Add(toExportedVertexIndices[vi1]);
-		indices.Add(toExportedVertexIndices[vi2]);
-	}
-
-	return factory;
-}
-
-SmoothMeshFactory tcodsChunkedGridMeshInterface::_clean(SmoothMeshFactory& mergedFactory)
-{
- 	typedef vcg::tri::Clean<MyMesh> Cleaner  ;
-
-	auto myMesh = _toMyMesh(mergedFactory);
-
-	int removedDegenerateFaces = Cleaner::RemoveDuplicateFace(*myMesh);
-	int removedDuplicateFaces = Cleaner::RemoveDuplicateFace(*myMesh);
-	int removedDuplicateVertices = Cleaner::RemoveDuplicateVertex(*myMesh);
-	int removedUnreferencedVertices = Cleaner::RemoveUnreferencedVertex(*myMesh);
-	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
-
-	int removedNonManifoldFaces = Cleaner::RemoveNonManifoldFace(*myMesh);
-	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
-
-	int removedNonManifoldVertices = Cleaner::RemoveNonManifoldVertex(*myMesh);
-	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
-
-	removedUnreferencedVertices += Cleaner::RemoveUnreferencedVertex(*myMesh);
-	vcg::tri::UpdateTopology<MyMesh>::FaceFace(*myMesh);
-
-	vcg::tri::Allocator<MyMesh>::CompactEveryVector(*myMesh);
-
-	return _toMeshFactory(*myMesh);
-}
 
 
 
@@ -1070,3 +1220,133 @@ SmoothMeshFactory tcodsChunkedGridMeshInterface::_clean(SmoothMeshFactory& merge
 //		}
 //	}
 //}
+
+auto tcodsRMCMeshBuilder::buildMeshes(URuntimeMeshComponent& rmc_in, const FTransform toWorld) ->std::vector<std::unique_ptr<tcods::Mesh>>
+{
+	using namespace tcods;
+
+	std::vector<std::unique_ptr<tcods::Mesh>> meshes;
+
+	tcods::MeshIO::MeshData wholeData = _toMeshData(rmc_in, toWorld);
+
+	// process into sections
+	std::vector<MeshIO::MeshData> extractedSectionData = _extractSections(wholeData);
+
+	int32 sectionIndex = 0;
+
+	for (MeshIO::MeshData& sectionData : extractedSectionData)
+	{
+		meshes.push_back(std::make_unique<Mesh>());
+		Mesh& mesh = *meshes.back().get();
+
+		MeshIO::buildMesh(sectionData, mesh);
+
+		mesh.topologyChange();
+		mesh.geometryChange();
+
+
+		sectionIndex++;
+	}
+
+	return meshes;
+}
+
+
+
+auto tcodsRMCMeshBuilder::_toMeshData(URuntimeMeshComponent& uMesh, const FTransform toWorld) ->tcods::MeshIO::MeshData
+{
+
+	using namespace tcods;
+
+	MeshIO::MeshData data;
+	//std::unordered_map<FVector, tcodsMeshInterface::VertexIndex> vertexLookup;
+
+	//auto& positions = data.positions;
+	//auto& indices = data.indices;
+	//auto& normals = data.normals;
+	//auto& texcoords = data.texcoords;
+
+	//URuntimeMesh * rmc = uMesh.GetRuntimeMesh();
+
+	//
+	//auto& sections = rmc->GetRuntimeMeshData()->GetSection();
+
+
+	//// now we need to process it with tcods
+	//using namespace tcods;
+	//using namespace DDG;
+
+
+	//for (auto sectionPtr : sections)
+	//{
+	//	uint32 sectionOffset = normals.size();
+
+	//	FRuntimeMeshSection * section = sectionPtr.Get();
+
+	//	FRuntimeMeshAccessor * accessor = section->GetSectionMeshAccessor().Get();
+
+	//	uint32 vCount = accessor->NumVertices();
+
+	//	// Unreal stores duplicate vertices, we need to resolve this with a map
+	//	std::vector<uint32> vertexIndices;
+	//	vertexIndices.resize(vCount);
+
+	//	for (uint32 i = 0; i < vCount; ++i)
+	//	{
+	//		const FVector& v = accessor->GetPosition(i);
+	//		const auto& normal = accessor->GetNormal(i);
+
+	//		FVector2D uv = accessor->GetUV(i, 0);
+
+	//		normals.push_back(to_tcods(normal));
+	//		texcoords.push_back(Vector(uv.X, uv.Y, 0.0f));
+
+	//		auto found = vertexLookup.find(v);
+	//		if (found == vertexLookup.end())
+	//		{
+	//			vertexLookup[v].sectionIndex = 0;
+	//			vertexLookup[v].vertexIndex = positions.size();
+
+	//			vertexIndices[i] = positions.size();
+
+	//			positions.push_back(to_tcods(toWorld.TransformPosition(v)));
+	//		}
+	//		else
+	//		{
+	//			vertexIndices[i] = found->second.vertexIndex;
+	//		}
+	//	}
+
+
+	//	int32 iCount = accessor->NumIndices();
+	//	for (int32 i = 0; i + 2 < iCount; i += 3)
+	//	{
+	//		// let's assume triangles
+	//		std::vector<MeshIO::Index> face(3);
+
+	//		// need to consider the winding order wrt to the face normal
+	//		const int32 indexArrayView0 = accessor->GetIndex(i + 0);
+	//		const int32 indexArrayView1 = accessor->GetIndex(i + 1);
+	//		const int32 indexArrayView2 = accessor->GetIndex(i + 2);
+
+	//		Vector n0 = normals[indexArrayView0 + sectionOffset];
+	//		Vector n1 = normals[indexArrayView1 + sectionOffset];
+	//		Vector n2 = normals[indexArrayView2 + sectionOffset];
+
+	//		Vector n = (n0 + n1 + n2) / 3.0;
+
+	//		int32 i0 = vertexIndices[indexArrayView0];
+	//		int32 i1 = vertexIndices[indexArrayView1];
+	//		int32 i2 = vertexIndices[indexArrayView2];
+
+	//		face[0] = MeshIO::Index(i0, accessor->GetIndex(i + 0) + sectionOffset, accessor->GetIndex(i + 0) + sectionOffset);
+	//		face[1] = MeshIO::Index(i1, accessor->GetIndex(i + 1) + sectionOffset, accessor->GetIndex(i + 1) + sectionOffset);
+	//		face[2] = MeshIO::Index(i2, accessor->GetIndex(i + 2) + sectionOffset, accessor->GetIndex(i + 2) + sectionOffset);
+
+	//		indices.push_back(face);
+	//	}
+	//}
+
+	return data;
+}
+

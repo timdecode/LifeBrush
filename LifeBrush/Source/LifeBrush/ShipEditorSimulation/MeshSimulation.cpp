@@ -97,7 +97,7 @@ void UMeshSimulation::updateInstances()
 	{
 		// if a mesh doesn't have a static mesh, or its invisible, we will skip it in the following loops
 		// as well
-		if (!mesh.visible || mesh.staticMesh == nullptr)
+		if (!mesh.visible || mesh.staticMesh == nullptr || !mesh.isValid())
 			continue;
 
 		UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
@@ -153,7 +153,7 @@ void UMeshSimulation::updateInstances()
 
 	for(FGraphMesh& mesh : meshes)
 	{
-		if( !mesh.visible || mesh.staticMesh == nullptr)
+		if( !mesh.visible || mesh.staticMesh == nullptr || !mesh.isValid())
 			continue;
 
 		FGraphNode& node = graph->node( mesh.nodeIndex );

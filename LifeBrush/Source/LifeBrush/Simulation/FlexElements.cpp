@@ -9,6 +9,7 @@
 
 #include "Utility.h"
 #include "SimulationSnapshotActor.h"
+#include "VolumeComponent.h"
 
 
 
@@ -87,7 +88,7 @@ void UFlexSimulationComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-
+	_cacheMeshesForMeshInterface();
 }
 
 void UFlexSimulationComponent::initFlexSimulationObject()
@@ -131,13 +132,109 @@ void UFlexSimulationComponent::_readRules()
 }
 
 auto UFlexSimulationComponent::init(
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface,
+	std::shared_ptr<tcodsMeshInterface> meshInterface,
 	FTransform meshInterfaceToWorld,
 	UCameraComponent * camera) -> void
 {
+	_initMeshInterface(meshInterface);
 
 	_flexSimulation->initMeshInterface(meshInterface, meshInterfaceToWorld, camera);
 }
+
+void UFlexSimulationComponent::_initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterfacePtr)
+{
+	auto& meshInterface = *meshInterfacePtr.get();
+
+	for (UStaticMeshComponent * meshComponent : _meshesForMeshInterface)
+	{
+		// build the mesh interface up
+		if (meshComponent && meshComponent->GetStaticMesh())
+		{
+			auto meshes = tcodsUStaticMeshBuilder::buildMeshes(*meshComponent->GetStaticMesh(), meshComponent->GetComponentToWorld());
+
+			for (auto& mesh : meshes)
+			{
+				auto section = meshInterface.addMesh(std::move(mesh));
+			}
+		}
+	}
+
+	meshInterface.setWorldLimits(_flexSimulation->instanceManagerBounds());
+	meshInterface.rebuild();
+}
+
+void UFlexSimulationComponent::_cacheMeshesForMeshInterface()
+{
+	AActor * actor = GetOwner();
+	USceneComponent * root = actor->GetRootComponent();
+
+	TArray<UStaticMeshComponent*> components;
+	actor->GetComponents<UStaticMeshComponent>(components);
+
+	// create our RMC
+	_meshInterfaceRMC = NewObject<URuntimeMeshComponent>(actor);
+	_meshInterfaceRMC->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
+	_meshInterfaceRMC->RegisterComponent();
+	actor->AddInstanceComponent(_meshInterfaceRMC);
+
+	// find the static meshes
+	for (USceneComponent * sceneComponent : components)
+	{
+		if (Cast<UInstancedStaticMeshComponent>(sceneComponent) != nullptr) continue;
+
+		UStaticMeshComponent * meshComponent = Cast<UStaticMeshComponent>(sceneComponent);
+
+		if( meshComponent && meshComponent->GetStaticMesh() )
+			_meshesForMeshInterface.Add(meshComponent);
+	}
+}
+
+void UFlexSimulationComponent::updateMeshInterface(UChunkedVolumeComponent * chunkVolume)
+{
+	checkfSlow(chunkVolume, TEXT("nullptr chunkVolume"));
+	checkfSlow(context->meshInterface, TEXT("The context is missing a meshInterface"));
+
+	auto& meshInterface = *_flexSimulation->meshInterface().get();
+
+	ChunkGrid<float>& grid = chunkVolume->grid();
+
+	// clear our old sections
+	for (auto section : _chunkSections)
+	{
+		meshInterface.removeMesh(section);
+
+		if( _meshInterfaceRMC) _meshInterfaceRMC->ClearMeshSection(section);
+	}
+
+	_chunkSections.clear();
+
+	// add new sections
+	auto meshes = tcodsChunkedGridMeshBuilder::buildMeshes(grid, chunkVolume->GetOwner()->ActorToWorld(), chunkVolume->isoLevel);
+
+	for (auto& mesh : meshes)
+	{
+		auto section = meshInterface.addMesh(std::move(mesh));
+
+		_chunkSections.push_back(section);
+	}
+
+	meshInterface.rebuild();
+
+	FBox limits = _flexSimulation->instanceManagerBounds();
+
+	if (_meshInterfaceRMC)
+	{
+		const FTransform transform = _meshInterfaceRMC->GetComponentTransform().Inverse();
+
+		for (auto section : _chunkSections)
+		{
+			meshInterface.buildRuntimeMeshSection(_meshInterfaceRMC, meshInterface.mesh(section), section, transform, true, true, limits);
+			_meshInterfaceRMC->SetMaterial(section, meshInterfaceMaterial);
+		}
+	}
+}
+
+
 
 ASimulationSnapshotActor* UFlexSimulationComponent::createGraphicalSnapshotActor(UWorld * world)
 {
@@ -169,11 +266,11 @@ AActor * UFlexSimulationComponent::snapshotSimulationStateToWorld(UWorld * world
 {
 	AActor * newActor = world->SpawnActor<AActor>();
 
+	AActor * originalActor = GetOwner();
+
 	// create scene root
 	USceneComponent * newScene = NewObject<USceneComponent>(newActor);
 	{
-		AActor * originalActor = GetOwner();
-
 		USceneComponent * originalScene = originalActor->GetRootComponent();
 
 		FTransform newTransform = originalScene->GetComponentTransform();
@@ -185,9 +282,70 @@ AActor * UFlexSimulationComponent::snapshotSimulationStateToWorld(UWorld * world
 	}
 
 	// duplicate the simulation
-	UFlexSimulationComponent * newElements = DuplicateObject(this, newActor);
+	{
+		UFlexSimulationComponent * newElements = DuplicateObject(this, newActor);
 
-	newActor->AddInstanceComponent(newElements);
+		newActor->AddInstanceComponent(newElements);
+	}
+
+	TArray<UStaticMeshComponent*> components;
+	originalActor->GetComponents<UStaticMeshComponent>(components);
+
+	// duplicate the static meshes
+	{
+		for (USceneComponent * sceneComponent : components)
+		{
+			if( Cast<UInstancedStaticMeshComponent>(sceneComponent) ) continue;
+
+			UStaticMeshComponent * meshComponent = Cast<UStaticMeshComponent>(sceneComponent);
+
+			if( !meshComponent) continue;
+
+			UStaticMeshComponent * newMeshComponent = DuplicateObject(meshComponent, newActor);
+
+			newActor->AddInstanceComponent(newMeshComponent);
+		}
+	}
+
+	// duplicate the _meshInterfaceRMC
+	if (_meshInterfaceRMC && _meshInterfaceRMC->GetNumSections() > 0)
+	{
+		// export the visible mesh
+		URuntimeMeshComponent * newRMC = Utility::duplicateRuntimeMeshComponentToActor(_meshInterfaceRMC, newActor);
+
+		if (newRMC)
+			newActor->AddInstanceComponent(newRMC);
+	}
+
+	{
+		// export the collision mesh too (we need this for tcods)
+		URuntimeMeshComponent * tcodsMeshInterfaceRMC = NewObject<URuntimeMeshComponent>(newActor);
+		tcodsMeshInterfaceRMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		tcodsMeshInterfaceRMC->AttachToComponent(newActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+		newActor->AddInstanceComponent(tcodsMeshInterfaceRMC);
+		tcodsMeshInterfaceRMC->RegisterComponent();
+
+		URuntimeMeshComponent * tcodsVisibleRMC = NewObject<URuntimeMeshComponent>(newActor);
+		tcodsVisibleRMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		tcodsVisibleRMC->AttachToComponent(newActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+		newActor->AddInstanceComponent(tcodsVisibleRMC);
+		tcodsVisibleRMC->RegisterComponent();
+
+		const FTransform transform = tcodsMeshInterfaceRMC->GetComponentTransform().Inverse();
+
+		auto& meshInterface = *_flexSimulation->meshInterface().get();
+
+		for (auto section : _chunkSections)
+		{
+			meshInterface.buildRuntimeMeshSection(tcodsMeshInterfaceRMC, meshInterface.mesh(section), section, transform, false /* clip to limits */, false /* double sided */);		
+			//tcodsMeshInterfaceRMC->SetMaterial(section, meshInterfaceMaterial);
+
+			meshInterface.buildRuntimeMeshSection(tcodsVisibleRMC, meshInterface.mesh(section), section, transform, true /* clip to limits */, true /* double sided */);
+			tcodsVisibleRMC->SetMaterial(section, meshInterfaceMaterial);
+		}
+	}
+	
+
 
 	return newActor;
 }
@@ -524,7 +682,7 @@ void FFlexSimulation::_postTick(float DeltaTime)
 }
 
 auto FFlexSimulation::initMeshInterface(
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface,
+	std::shared_ptr<tcodsMeshInterface> meshInterface,
 	FTransform meshInterfaceToWorld,
 	UCameraComponent * camera) -> void
 {
@@ -760,6 +918,8 @@ auto FFlexSimulation::setInstanceManagerBounds( FBox bounds ) -> void
 	}
 
 	flexParams.numPlanes = 6;
+
+	_bounds = bounds;
 }
 
 auto FFlexSimulation::addTickWork(std::function<void()> work) -> void
@@ -1155,7 +1315,10 @@ void FFlexSimulation::_spawnMesh( NvFlexCollisionGeometry * geometry, FVector4 *
 		&_mesh0_bounds.Max[0]
 	);
 
-	shapeFlags[meshIndex] = NvFlexMakeShapeFlagsWithChannels( eNvFlexShapeTriangleMesh, false, eNvFlexPhaseShapeChannel0 | eNvFlexPhaseShapeChannel1 );
+	// shapeFlags[meshIndex] = NvFlexMakeShapeFlagsWithChannels(eNvFlexShapeTriangleMesh, false, eNvFlexPhaseShapeChannel0 | eNvFlexPhaseShapeChannel1);
+	// only interact with channel 0
+	// channel 1 is for surface bound objects
+	shapeFlags[meshIndex] = NvFlexMakeShapeFlagsWithChannels( eNvFlexShapeTriangleMesh, false, eNvFlexPhaseShapeChannel0 );
 
 	geometry[meshIndex].triMesh.mesh = _mesh0_Id;
 
@@ -1263,7 +1426,7 @@ auto FFlexSimulation::_integrateRotations(float deltaT) -> void
 	}
 }
 
-auto FFlexSimulation::_loadTcodsMesh(tcodsMeshInterfaceBase& tcodsMesh) -> void
+auto FFlexSimulation::_loadTcodsMesh(tcodsMeshInterface& tcodsMesh) -> void
 {
 	FTransform worldToUsTransform = owner->GetRootComponent()->GetComponentTransform().Inverse();
 
@@ -1562,6 +1725,9 @@ void URandomWalkSimulation::tick( float deltaT )
 
 		auto nearest = meshInterface->nearestPointOnMesh( p );
 
+		if( !nearest.surfaceIndex.isOnSurface() )
+			continue;
+
 		auto rotationAndNormal = meshInterface->rotationAndNormalAtIndex( nearest.surfaceIndex );
 
 		FQuat surfaceRotation = toWorld.InverseTransformRotation(rotationAndNormal.first);
@@ -1572,6 +1738,7 @@ void URandomWalkSimulation::tick( float deltaT )
 		node.orientation = rotation * node.orientation;
 
 		dweller.lastSurfaceRotation = surfaceRotation;
+		dweller.surfaceIndex = nearest.surfaceIndex;
 
 		// project linear velocity back onto the surface
 		if(node.hasComponent<FVelocityGraphObject>())

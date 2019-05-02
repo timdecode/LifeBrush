@@ -158,6 +158,9 @@ void UDiscreteElementEditorComponent::setCurrentGenerator(UElementGenerator * ge
 			_generator->flexSimulation = _flexSimulation.get();
 
 		_generator->attach(context.get(), simulationManager);
+
+		if (!_paused)
+			_generator->start();
 	}
 }
 
@@ -230,26 +233,13 @@ void UDiscreteElementEditorComponent::loadElementDomain(FGraphSnapshot& toLoad)
 		setCurrentGenerator(cachcedGenerator);
 }
 
-void UDiscreteElementEditorComponent::updateMeshInterface(UChunkedVolumeComponent * chunkVolume)
-{
-	checkfSlow(chunkVolume, TEXT("nullptr chunkVolume"));
-
-	if (meshInterfaceMode != EMeshInterfaceMode::ChunkedMesh)
-		return;
-
-	tcodsChunkedGridMeshInterface * chunkInterface = StaticCast<tcodsChunkedGridMeshInterface*>(context->meshInterface.get());
-
-	ChunkGrid<float>& grid = chunkVolume->grid();
-
-	chunkInterface->buildMesh(grid, chunkVolume->GetOwner()->ActorToWorld(), chunkVolume->isoLevel, context->limits, nullptr);
-}
 
 void UDiscreteElementEditorComponent::_init()
 {
 	if (!simulationManager)
 		return;
-
-	_initMeshInterface();
+		
+	context->meshInterface = std::make_shared<tcodsMeshInterface>();
 
 	context->limits = limits;
 
@@ -259,42 +249,6 @@ void UDiscreteElementEditorComponent::_init()
 	_didInit = true;
 }
 
-void UDiscreteElementEditorComponent::_initMeshInterface()
-{
-	if (meshInterfaceMode == EMeshInterfaceMode::ChunkedMesh)
-		context->meshInterface = std::make_shared<tcodsChunkedGridMeshInterface>();
-	else if (meshInterfaceMode == EMeshInterfaceMode::StaticMesh)
-	{
-		auto meshInterface = std::make_shared<tcodsUStaticMeshInterface>();
-
-		context->meshInterface = meshInterface;
-
-		TArray<USceneComponent*> components;
-		GetOwner()->GetRootComponent()->GetChildrenComponents(true, components);
-
-		auto findComponent = [&](UClass * theClass) -> USceneComponent * 
-		{
-			for (auto * c : components)
-			{
-				if (c->GetClass()->IsChildOf(theClass)) return c;
-			}
-
-			return nullptr;
-		};
-
-		// find the RMC
-		URuntimeMeshComponent * rmc = Cast<URuntimeMeshComponent>(findComponent(URuntimeMeshComponent::StaticClass()));
-
-		UStaticMeshComponent * meshComponent = Cast<UStaticMeshComponent>(findComponent(UStaticMeshComponent::StaticClass()));
-
-		UStaticMeshComponent * mesh = GetOwner()->FindComponentByClass<UStaticMeshComponent>();
-
-		if (mesh && mesh->GetStaticMesh())
-		{
-			meshInterface->buildMesh(*mesh->GetStaticMesh(), mesh->GetComponentToWorld(), limits, rmc);
-		}
-	}
-}
 
 void UDiscreteElementEditorComponent::RegisterComponentTickFunctions(bool bRegister)
 {

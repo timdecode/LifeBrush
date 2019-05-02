@@ -20,7 +20,7 @@ public:
 
 	Domain domain;
 
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface;
+	std::shared_ptr<tcodsMeshInterface> meshInterface;
 
 	std::shared_ptr<ctpl::thread_pool> threadPool;
 

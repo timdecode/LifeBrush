@@ -45,7 +45,7 @@ struct SamplePoint
  mesh interface are in world space, as determined by the toWorld transform passed in
  tcodsMeshInterface::buildMesh.
  */
-struct tcodsMeshInterfaceBase
+struct tcodsMeshInterface
 {
 public:
 	struct VertexIndex
@@ -56,8 +56,17 @@ public:
 
    
 public:
+	void setWorldLimits(FBox limits) { _worldLimits = limits;  }
+
+	uint32_t addMesh(std::unique_ptr<tcods::Mesh> mesh);
+	void removeMesh(uint32_t section);
+	void setMesh(uint32_t section, std::unique_ptr<tcods::Mesh> mesh);
     
-	void rebuildBvh();
+	void rebuild();
+
+	void buildRMC(URuntimeMeshComponent * rmc, bool clipToLimits = false, bool doubleSide = true);
+	void buildRuntimeMeshSection(URuntimeMeshComponent * runtimeMesh, tcods::Mesh& mesh, uint32_t section, FTransform transform, bool clipToLimits = true, bool doubleSide = true, FBox limits = FBox());
+
 
 	/** \param uStaticMeshVertex A vertex directly from the UStaticMesh instance used to
      build the mesh interface.
@@ -182,6 +191,9 @@ public:
     }
     
 public:
+
+
+public:
     bvh::BVH bvh;
     
     unsigned int sampleSubdivisions = 64;
@@ -199,12 +211,8 @@ protected:
 	auto _clear();
 
 	auto _countTriangles() -> size_t;
-
-	auto _extractSections(tcods::MeshIO::MeshData& data)->std::vector<tcods::MeshIO::MeshData>;
-	void _floodVisit(const int32 vertex, const std::vector< std::vector<int32> >& verticesConnectedToVertex, std::set<int>& unvisitedVertices, std::unordered_set<int32>& connectedVertices);
 	
-	void _buildRuntimeMesh(URuntimeMeshComponent * runtimeMesh, bool clipToLimits = true, FBox limits = FBox(EForceInit::ForceInitToZero));
-	void _buildRuntimeMeshSection(URuntimeMeshComponent * runtimeMesh, tcods::Mesh& mesh, uint32_t section, FTransform transform, bool clipToLimits = true, FBox limits = FBox());
+	void _buildRuntimeMesh(URuntimeMeshComponent * runtimeMesh, bool clipToLimits = true, bool doubleSide = true, FBox limits = FBox(EForceInit::ForceInitToZero));
 
 protected:
     std::unordered_map<FVector, VertexIndex> _vertexLookup;
@@ -214,33 +222,58 @@ protected:
 	FBox _worldLimits = FBox(EForceInit::ForceInitToZero);
 };
 
-struct tcodsUStaticMeshInterface : public tcodsMeshInterfaceBase
+struct tcodsMeshBuilderBase
 {
-	auto buildMesh(UStaticMesh& uMesh_in, const FTransform& toWorld, FBox sampleLimits = FBox(), class URuntimeMeshComponent * runtimeMeshToCopyInto = nullptr) -> bool;
-
 protected:
-	struct MeshDataAndVertexLookup
-	{
-		tcods::MeshIO::MeshData meshData;
-		std::unordered_map<FVector, VertexIndex> vertexLookup;
-	};
+	static auto _extractSections(tcods::MeshIO::MeshData& data)->std::vector<tcods::MeshIO::MeshData>;
 
-	auto _toMeshData(UStaticMesh& uMesh, const FTransform toWorld)->MeshDataAndVertexLookup;
+	static void _floodVisit(
+		const int32 vertex, 
+		const std::vector< std::vector<int32> >& verticesConnectedToVertex, 
+		std::set<int>& unvisitedVertices, 
+		std::unordered_set<int32>& connectedVertices);
+
+	static void _clean(class MyMesh * meshData);
+
 };
 
-struct tcodsChunkedGridMeshInterface : public tcodsMeshInterfaceBase
+struct tcodsUStaticMeshBuilder : public tcodsMeshBuilderBase
+{
+	static auto buildMeshes(
+		UStaticMesh& uMesh_in,
+		const FTransform toWorld) -> std::vector<std::unique_ptr<tcods::Mesh>>;
+
+protected:
+
+	static auto _toMeshData(UStaticMesh& uMesh, const FTransform toWorld)->tcods::MeshIO::MeshData;
+};
+
+struct tcodsRMCMeshBuilder : public tcodsMeshBuilderBase
+{
+	static auto buildMeshes(
+		URuntimeMeshComponent& rmc_in,
+		const FTransform toWorld)->std::vector<std::unique_ptr<tcods::Mesh>>;
+
+protected:
+
+	static auto _toMeshData(URuntimeMeshComponent& uMesh, const FTransform toWorld)->tcods::MeshIO::MeshData;
+};
+
+struct tcodsChunkedGridMeshBuilder : public tcodsMeshBuilderBase
 {
 public:
-	void buildMesh(ChunkGrid<float>& chunkGrid, const FTransform& toWorld, float isoLevel, FBox limits, URuntimeMeshComponent * runtimeMesh = nullptr);
+	static auto buildMeshes(
+		ChunkGrid<float>& chunkGrid, 
+		const FTransform& toWorld,
+		float isoLevel)->std::vector<std::unique_ptr<tcods::Mesh>>;
 
 
 protected:
-	auto _toMergedMeshData(ChunkGrid<float> &chunkGrid, float isoLevel, FTransform toWorld)->tcods::MeshIO::MeshData;
+	static auto _toMergedMeshData(ChunkGrid<float> &chunkGrid, float isoLevel, FTransform toWorld)->tcods::MeshIO::MeshData;
 
-	void _buildSectionsFromMeshData(tcods::MeshIO::MeshData& data);
+	static auto _buildSectionsFromMeshData(tcods::MeshIO::MeshData& data)->std::vector<std::unique_ptr<tcods::Mesh>>;
 
-	tcods::MeshIO::MeshData _toTcods(SmoothMeshFactory& factory);
+	static tcods::MeshIO::MeshData _toTcods(SmoothMeshFactory& factory);
 
-	SmoothMeshFactory _clean(SmoothMeshFactory& mergedFactory);
 };
 

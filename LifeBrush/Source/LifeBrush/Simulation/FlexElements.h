@@ -292,7 +292,7 @@ public:
 		int maxParticles 
 	) override;
 
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface;
+	std::shared_ptr<tcodsMeshInterface> meshInterface;
 
 	FTransform toWorld;
 
@@ -379,7 +379,7 @@ public:
 
 	virtual void tick( float deltaT ) override;
 
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface;
+	std::shared_ptr<tcodsMeshInterface> meshInterface;
 
 	FTransform toWorld;
 };
@@ -693,7 +693,7 @@ public:
 	auto initSimulationManager(AActor * owner) -> void;
 
 	// Called after initSimulationManager
-	auto initMeshInterface(std::shared_ptr<tcodsMeshInterfaceBase> meshInterface, 
+	auto initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterface, 
 		FTransform meshInterfaceToWorld, 
 		UCameraComponent * camera) -> void;
 
@@ -716,9 +716,12 @@ public:
 	auto exportElementDomain()->FGraphSnapshot;
 
 	auto setInstanceManagerBounds(FBox instanceManagerRelativeBounds) -> void;
+	auto instanceManagerBounds() -> FBox { return _bounds; }
 
 	auto addTickWork(std::function<void()> work) -> void;
 	auto addFlexTickWork(FlexTickWork_t work) -> void;
+
+	std::shared_ptr<tcodsMeshInterface> meshInterface() { return _meshInterface; }
 
 protected:
 	auto _initFlex() -> void;
@@ -758,7 +761,7 @@ protected:
 
 	auto _integrateRotations(float deltaT) -> void;
 
-	auto _loadTcodsMesh(tcodsMeshInterfaceBase& mesh) -> void;
+	auto _loadTcodsMesh(tcodsMeshInterface& mesh) -> void;
 
 	auto _loadMesh(UStaticMeshComponent * meshComponent) -> void;
 
@@ -789,6 +792,8 @@ protected:
 
 	std::vector< std::function<void()> > _tickWork;
 	std::vector< FlexTickWork_t > _flexTickWork;
+
+	FBox _bounds;
 
 	NvFlexInitDesc _initDesc;
 	NvFlexSolverDesc _solverDescription;
@@ -1001,7 +1006,7 @@ protected:
 
 	const size_t nGeometries = 2;
 
-	std::shared_ptr<tcodsMeshInterfaceBase> _meshInterface;
+	std::shared_ptr<tcodsMeshInterface> _meshInterface;
 	FTransform _meshToWorld;
 
 	std::set<FGraphNodeHandle> _flexParticlesToAdd;
@@ -1076,8 +1081,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	AActor * rulesActor = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	UMaterialInterface * meshInterfaceMaterial;
+
 protected:
 	std::unique_ptr<FFlexSimulation> _flexSimulation;
+
+	TArray<UStaticMeshComponent*> _meshesForMeshInterface;
+
+	UPROPERTY()
+	URuntimeMeshComponent * _meshInterfaceRMC = nullptr;
+
+	std::vector<uint32_t> _chunkSections;
 
 public:
 	UFlexSimulationComponent();
@@ -1091,9 +1106,12 @@ public:
 	virtual void BeginPlay();
 
 
-	auto init(std::shared_ptr<tcodsMeshInterfaceBase> meshInterface,
+
+	auto init(std::shared_ptr<tcodsMeshInterface> meshInterface,
 		FTransform meshInterfaceToWorld,
 		UCameraComponent * camera) -> void;
+
+	void updateMeshInterface(class UChunkedVolumeComponent * chunkVolume);
 
 	FFlexSimulation* flexSimulation() { return _flexSimulation.get(); }
 
@@ -1106,6 +1124,9 @@ public:
 
 protected:
 	void initFlexSimulationObject();
+
+	void _initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterface);
+	void _cacheMeshesForMeshInterface();
 
 	void _readRules();
 };

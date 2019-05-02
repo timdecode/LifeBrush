@@ -9,6 +9,8 @@
 
 #include "DigTool.generated.h"
 
+class UFlexSimulationComponent;
+
 UCLASS(Blueprintable)
 class LIFEBRUSH_API ADigToolPopupActor : public AActor
 {
@@ -113,12 +115,8 @@ public:
 	UPROPERTY()
 	ADigToolPopupActor * popupActor = nullptr;
 
-
 	UPROPERTY()
-	URegionGrowingComponent * regionGrowingComponent = nullptr;
-
-	UPROPERTY()
-	UDiscreteElementEditorComponent * editorComponent = nullptr;
+	UFlexSimulationComponent * flexComponent = nullptr;
 
 	// ------------------------------
 	// Widget Stuff
@@ -151,6 +149,7 @@ protected:
 
 	FString _actorLabelByDate(FString baseName);
 
+	void _setRMCVisibility(bool visibile);
 
 protected:
 	UPROPERTY()

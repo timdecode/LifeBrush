@@ -643,7 +643,7 @@ void Algorithm::loadExemplar()
 
 }
 
-void Algorithm::setMeshInterface( std::shared_ptr<tcodsMeshInterfaceBase> meshInterface )
+void Algorithm::setMeshInterface( std::shared_ptr<tcodsMeshInterface> meshInterface )
 {
 	_context.meshInterface = meshInterface;
 }

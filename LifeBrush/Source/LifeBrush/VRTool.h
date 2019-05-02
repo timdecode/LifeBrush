@@ -15,6 +15,7 @@ class UMotionControllerComponent;
 class URegionGrowingComponent;
 class UWidgetComponent;
 class UDiscreteElementEditorComponent;
+class UFlexSimulationComponent;
 
 class UToolDelegate
 {
@@ -26,6 +27,7 @@ struct FUToolInitProperties
 {
 public:
 	UDiscreteElementEditorComponent * editor;
+	UFlexSimulationComponent * flexSimulation;
 	UPrimitiveComponent * leftSelectionPoint;
 	UPrimitiveComponent * rightSelectionPoint;
 	USceneComponent * targetComponent;

@@ -2338,74 +2338,9 @@ public:
 
 protected:
 	// removes all of the nodes, edges and components referenced in the transaction
-	void _purgeTransaction(GraphTransaction& transaction)
-	{
-		// remove edge objects 
-		for (auto& pair : transaction.removedEdgeObjects)
-		{
-			EdgeObjectType edgeType = pair.first;
-			std::vector<FGraphEdgeHandle>& handles = pair.second;
-
-			auto& edges = this->rawEdgeStorage(edgeType);
-
-			for (FGraphEdgeHandle& handle : handles)
-			{
-				edges.erase(handle);
-			}
-		}
-
-		// remove connections from nodes
-		for (auto& edgeHandle : transaction.removedConnections)
-		{
-			FGraphEdge& edge = privateEdges[edgeHandle];
-
-			FGraphNode& aNode = allNodes[edge.a];
-			FGraphNode& bNode = allNodes[edge.b];
-
-			aNode.edges.Remove(edgeHandle);
-			bNode.edges.Remove(edgeHandle);
-		}
-
-		// remove the edge data structures
-		for (auto& edgeHandle : transaction.removedConnections)
-		{
-			RecyclingArray::remove(privateEdges, recycledEdges, edgeHandle);
-		}
-
-		// remove components from nodes
-		for (auto& pair : transaction.removedComponents)
-		{
-			ComponentType type = pair.first;
-			auto& nodes = pair.second;
-
-			for (FGraphNodeHandle nodeHandle : nodes)
-			{
-				FGraphNode& node = allNodes[nodeHandle.index];
-
-				node.components.Remove(type);
-			}
-		}
-
-		// remove component data structure
-		for (auto& pair : transaction.removedComponents)
-		{
-			ComponentType type = pair.first;
-			auto& nodes = pair.second;
-
-			auto& storage = componentStorage(type);
-
-			for (FGraphNodeHandle& handle : nodes)
-			{
-				storage.erase(handle, type);
-			}
-		}
-
-		// remove nodes
-		for (auto& node : transaction.removedNodes)
-		{
-			RecyclingArray::remove(allNodes, recycledNodes, node);
-		}
-	}
+	// This is destructive to the GraphTransaction object, it's state will change, so
+	// only call this once and don't rely on the validity of the GraphTransaction afterwards.
+	void _purgeTransaction(GraphTransaction& transaction);
 
 public:
 
@@ -2701,32 +2636,30 @@ struct TStructOpsTypeTraits<FGraph> : public TStructOpsTypeTraitsBase2<FGraph>
 template<class TComponent, class... TArgs >
 inline TComponent& FGraphNode::addComponent( FGraph& graph, TArgs... args )
 {
+	TypedComponentStorage<TComponent>& storage = graph.componentStorage<TComponent>();
+
+
 	ComponentType type = componentType<TComponent>();
 
+	TComponent * comp = storage.componentPtrForNode(handle());
+
 	// reinitialize the component
-	if(hasComponent( type ))
+	if (comp)
 	{
-		TComponent& comp = component<TComponent>( graph );
+		*comp = TComponent(std::forward<TArgs>(args)...);
 
-		auto nodeIndex = comp.nodeIndex;
-
-		comp = TComponent( std::forward<TArgs>( args )... );
-
-		// restore the node index
-		comp.nodeIndex = nodeIndex;
-
-		return comp;
+		comp->nodeIndex = id;
+	}
+	else
+	{
+		comp = &storage.emplace<TComponent>(*this, std::forward<TArgs>(args)...);
 	}
 
-	FComponentStorage& storage = graph.componentStorage( type );
+	if (!components.Contains(type)) components.Add(type);
 
-	TComponent& component = storage.emplace<TComponent>( *this, std::forward<TArgs>( args )... );
+	graph.componentAdded(*this, type);
 
-	components.Add( type );
-
-	graph.componentAdded( *this, type ); 
-
-	return component;
+	return *comp;
 }
 
 inline FGraphObject* FGraphNode::addComponent( FGraph& graph, ComponentType type )
@@ -2735,29 +2668,28 @@ inline FGraphObject* FGraphNode::addComponent( FGraph& graph, ComponentType type
 
 	UScriptStruct * typeStruct = FGraphObject::componentStruct( type );
 
+	FGraphObject * comp = storage.componentForNode(handle());
+
 	// reinitialize the component
-	if(hasComponent( type ))
+	if (comp)
 	{
-		FGraphObject * comp = component( graph, type );
-
-		auto nodeIndex = comp->nodeIndex;
-
-		typeStruct->GetCppStructOps()->Destruct( comp );
+		typeStruct->GetCppStructOps()->Destruct(comp);
 		typeStruct->GetCppStructOps()->Construct(comp);
 
 		// restore the node index
-		comp->nodeIndex = nodeIndex;
+		comp->nodeIndex = id;
 
-		return comp;
+	}
+	else
+	{
+		comp = storage.emplace(*this, typeStruct);
 	}
 
-	FGraphObject * component = storage.emplace( *this, typeStruct );
-
-	components.Add( type );
+	if (!components.Contains(type)) components.Add(type);
 
 	graph.componentAdded( *this, type );
 
-	return component;
+	return comp;
 }
 
 inline FGraphObject* FGraphNode::component( FGraph& graph, ComponentType type )

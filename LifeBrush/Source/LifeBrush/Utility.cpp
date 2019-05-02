@@ -49,6 +49,8 @@ void Utility::unboxComponents(TArray<FTimStructBox>& components, struct FGraphNo
 
 		if(box.structMemory)
 			box.scriptStruct->CopyScriptStruct(destinationComponent, box.structMemory);
+
+		destinationComponent->nodeIndex = destination.id;
 	}
 }
 

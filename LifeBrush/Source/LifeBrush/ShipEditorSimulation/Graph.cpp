@@ -2,6 +2,8 @@
 
 #include "LifeBrush.h"
 #include "Graph.h"
+#include <unordered_set>
+#include <algorithm>
 
 void FGraph::init()
 {
@@ -87,6 +89,108 @@ void FGraph::_edgeObjectRemoved(FGraphEdgeHandle handle, EdgeObjectType type)
 
 		for (auto listener : found->second)
 			listener->edgeObjectRemoved(handle, type);
+	}
+}
+
+void FGraph::_purgeTransaction(GraphTransaction& transaction)
+{
+	// remove edge objects 
+	for (auto& pair : transaction.removedEdgeObjects)
+	{
+		EdgeObjectType edgeType = pair.first;
+		std::vector<FGraphEdgeHandle>& handles = pair.second;
+
+		auto& edges = this->rawEdgeStorage(edgeType);
+
+		for (FGraphEdgeHandle& handle : handles)
+		{
+			edges.erase(handle);
+		}
+	}
+
+	// remove connections from nodes
+	for (auto& edgeHandle : transaction.removedConnections)
+	{
+		FGraphEdge& edge = privateEdges[edgeHandle];
+
+		FGraphNode& aNode = allNodes[edge.a];
+		FGraphNode& bNode = allNodes[edge.b];
+
+		aNode.edges.Remove(edgeHandle);
+		bNode.edges.Remove(edgeHandle);
+	}
+
+	// remove the edge data structures
+	for (auto& edgeHandle : transaction.removedConnections)
+	{
+		RecyclingArray::remove(privateEdges, recycledEdges, edgeHandle);
+	}
+
+	// sort added components
+	// sort the added components, so we can binary search them for removed components
+	// we do this instead of a set, because no memory allocations and it's compact in the cache
+	for (auto& pair : transaction.addedComponents)
+	{
+		auto& added = pair.second;
+
+		std::sort(added.begin(), added.end());
+	}
+
+	// remove the component handles that were also added
+	// Idea: forget the removed components that were also added (by placing a tombstone)
+	for (auto& pair : transaction.removedComponents)
+	{
+		auto type = pair.first;
+		auto& removed = pair.second;
+
+		auto& added = transaction.addedComponents[type];
+
+		for (auto& h : removed)
+		{
+			if (std::binary_search(added.begin(), added.end(), h))
+				h = FGraphNodeHandle::null;
+		}
+
+	}
+
+	// remove components from nodes
+	for (auto& pair : transaction.removedComponents)
+	{
+		ComponentType type = pair.first;
+		auto& nodes = pair.second;
+
+		for (FGraphNodeHandle nodeHandle : nodes)
+		{
+			// don't nuke what was just added
+			if( !nodeHandle ) continue;
+
+			FGraphNode& node = allNodes[nodeHandle.index];
+
+			node.components.Remove(type);
+		}
+	}
+
+	// remove component data structure
+	for (auto& pair : transaction.removedComponents)
+	{
+		ComponentType type = pair.first;
+		auto& nodes = pair.second;
+
+		auto& storage = componentStorage(type);
+
+		for (FGraphNodeHandle& handle : nodes)
+		{
+			// don't nuke what was just added
+			if (!handle) continue;
+
+			storage.erase(handle, type);
+		}
+	}
+
+	// remove nodes
+	for (auto& node : transaction.removedNodes)
+	{
+		RecyclingArray::remove(allNodes, recycledNodes, node);
 	}
 }
 

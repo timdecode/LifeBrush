@@ -21,7 +21,6 @@
 #include "InstanceManager.h"
 #include "NeighbourhoodParameters.h"
 #include "ElementActor.h"
-#include "MeshInterfaceMode.h"
 
 #include "RegionGrowingComponent.generated.h"
 
@@ -77,7 +76,7 @@ public:
 
 	FGraph graph;
 
-	std::shared_ptr<tcodsMeshInterfaceBase> meshInterface;
+	std::shared_ptr<tcodsMeshInterface> meshInterface;
 };
 
 
@@ -116,7 +115,7 @@ public:
 public:
     UDepthReader * reader = nullptr;
     FVector cameraLocation;
-	std::shared_ptr<tcodsMeshInterfaceBase> _meshInterface = nullptr;
+	std::shared_ptr<tcodsMeshInterface> _meshInterface = nullptr;
 };
 
 
@@ -259,8 +258,6 @@ public:
     UPROPERTY(EditAnywhere) EGenerationMode generationMode;	
 
 	UPROPERTY(EditAnywhere) EAlgorithm algorithmType = EAlgorithm::RegionGrowing;
-    
-	UPROPERTY(EditAnywhere) EMeshInterfaceMode meshInterfaceMode = EMeshInterfaceMode::StaticMesh;
 
 	UPROPERTY(EditAnywhere) AActor * chunkedStaticMeshActor = nullptr;
 
@@ -452,7 +449,7 @@ public:
     void removeSeedAt(unsigned int index);
     
     bool isMeshInterfaceReady() { return _didInit; };
-    std::shared_ptr<tcodsMeshInterfaceBase> meshInterface() { return _meshInterface; };
+    std::shared_ptr<tcodsMeshInterface> meshInterface() { return _meshInterface; };
 	void updateMeshInterface();
 
 
@@ -692,7 +689,7 @@ protected:
 	UInstancedStaticMeshComponent * _debug_matchingISMC = nullptr;
 	UInstancedStaticMeshComponent& debug_matchingISMC();
 
-    std::shared_ptr<tcodsMeshInterfaceBase> _meshInterface = nullptr;
+    std::shared_ptr<tcodsMeshInterface> _meshInterface = nullptr;
     bool _didInit = false;
     
     std::atomic<bool> _readyToSubmitNextGenerateCall = {true};
