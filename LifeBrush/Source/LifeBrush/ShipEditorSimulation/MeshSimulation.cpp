@@ -370,6 +370,7 @@ UInstancedStaticMeshComponent * UMeshSimulation::getOrCreateInstancedMesh( FGrap
 		UInstancedStaticMeshComponent * desaturatedMesh = _createISMCs(graphMesh);
 
 		desaturatedMesh->SetRenderCustomDepth(true);
+		desaturatedMesh->SetCustomDepthStencilValue(1); // 1 is the magic number for desaturated post processing
 
 		_instancedStaticeMeshes[graphMesh] = instancedMesh;
 		_desaturatedInstancedStaticMeshes[graphMesh] = desaturatedMesh;
