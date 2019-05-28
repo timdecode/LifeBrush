@@ -1937,10 +1937,12 @@ std::vector<Algorithm::PredictionNeighbourhood> Algorithm::_predictionNeighbourh
 		if (!sourceExample.element)
 			return;
 
-		futures.emplace_back(_context.threadPool->push([this, &element, &sourceExample, i, &results](int threadID) {
-			// get the nearest element
-			auto& coherentNeighbours = sourceExample.kCoherentNeighbours(_defaultSelection);
+		// get the nearest element
+		// Careful, this can reallocate _defaultSelection._kCoherentElements 
+		// Don't do that when we are on multiple threads
+		auto& coherentNeighbours = sourceExample.kCoherentNeighbours(_defaultSelection);
 
+		futures.emplace_back(_context.threadPool->push([this, &element, &sourceExample, &coherentNeighbours, i, &results](int threadID) {
 			auto nearestVec = _nearestSimilarElements(
 				element.nodeHandle(), _context.domain,
 				coherentNeighbours, _exemplar,
