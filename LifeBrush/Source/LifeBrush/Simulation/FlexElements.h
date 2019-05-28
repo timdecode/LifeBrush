@@ -155,6 +155,31 @@ public:
 	virtual ~UEvent_ProtonPumped() {}
 };
 
+// Makes an object for a three point path.
+USTRUCT(BlueprintType)
+struct LIFEBRUSH_API F3PointPathFollower : public FGraphObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FVector points[3];
+
+	// The parameterized position along the path, in s.
+	UPROPERTY()
+	float time = 0.0f;
+
+	// How long it takes to complete the path.
+	UPROPERTY()
+	float duration = 1.0f;
+
+	UPROPERTY()
+	int restoreChannel = 0;
+
+	UPROPERTY()
+	FVector terminalVelocity;
+};
+
 USTRUCT(BlueprintType)
 struct LIFEBRUSH_API FProtonPumpGraphObject : public FGraphObject
 {
@@ -166,9 +191,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	float refractoryPeriodH = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
-	float hyrogenInteractionRadius = 5.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	EATPSynthaseState state = EATPSynthaseState::Inactive;
@@ -217,6 +239,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	bool selfCollide = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	bool isFlud = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	float inverseMass = 0.125f;
@@ -278,6 +303,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	float r_min = 1.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	float hyrogenInteractionRadius = 5.0f;
+
 public:
 	virtual void attach() override;
 
@@ -297,6 +325,7 @@ public:
 	FTransform toWorld;
 
 protected:
+	void _tickFollowPath(float deltaT);
 
 	void _tickProtonPumps( float deltaT, NvFlexVector<int>& neighbourIndices, NvFlexVector<int>& neighbourCounts, NvFlexVector<int>& apiToInternal, NvFlexVector<int>& internalToAPI, int maxParticles );
 
@@ -740,14 +769,11 @@ protected:
 
 	void _hackInitChannels();
 
-	auto _spawnDespawnParticles(FVector4 * positions, FVector * velocities, int * phases, int * active) -> void;
 	// The spring buffers should have already been mapped before calling.
 	auto _spawnDespawnSprings() -> void;
 
 	auto _spawnShapes(NvFlexCollisionGeometry * geometry, FVector4 * shapePositions, FQuat * shapeRotations, int * shapeFlags) -> void;
 	auto _spawnMesh(NvFlexCollisionGeometry * geometry, FVector4 * shapePositions, FQuat * shapeRotations, int * shapeFlags) -> void;
-
-	void _loadPositionsAndVelocities(FVector4 * particles, FVector * velocities, int * phases, int * active);
 
 	// The spring buffers should have already been mapped before calling.
 	void _loadSprings();
@@ -1000,7 +1026,7 @@ protected:
 	float _sphereRadius = 20.0f;
 
 	const size_t _maxParticles = 20000;
-	const size_t _maxNeighbors = 48;
+	const size_t _maxNeighbors = 128;
 
 	size_t nParticles = 0;
 
@@ -1008,9 +1034,6 @@ protected:
 
 	std::shared_ptr<tcodsMeshInterface> _meshInterface;
 	FTransform _meshToWorld;
-
-	std::set<FGraphNodeHandle> _flexParticlesToAdd;
-	std::set<FGraphNodeHandle> _flexParticlesToRemove;
 
 	std::set<FGraphEdgeHandle> _flexSpringsToAdd;
 	std::set<FGraphEdgeHandle> _flexSpringsToRemove;

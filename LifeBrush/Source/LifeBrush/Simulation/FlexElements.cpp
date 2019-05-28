@@ -410,7 +410,7 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	// springs and positions
 	if (needsFirstInit)
 	{
-		_loadPositionsAndVelocities(particles, velocities, phases, active);
+		_writeFlexState(particles, velocities, phases, active);
 
 		// make sure we have created our buffers
 		_springs->init();
@@ -446,9 +446,6 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	// simulate
 	_preTick(deltaT);
 
-	//UTimelineSimulation * timeline = simulationManager.simulation<UTimelineSimulation>();
-
-	//timeline->beginFrame();
 	{
 		// do tick work
 		for (auto& work : _tickWork)
@@ -478,9 +475,6 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	}
 	//timeline->endFrame();
 	_postTick(deltaT);
-
-	// called immediately after the simulation, to generate new particles
-	_spawnDespawnParticles(particles, velocities, phases, active);
 
 	// Write simulation state back into Flex
 	_writeFlexState(particles, velocities, phases, active);
@@ -1005,63 +999,6 @@ auto FFlexSimulation::_instanceCount() -> size_t
 	return sum;
 }
 
-auto FFlexSimulation::_spawnDespawnParticles( FVector4 * positions, FVector * velocities, int * phases, int * active ) -> void
-{
-	float r = _params.radius;
-
-	nParticles = graphSimulation.componentStorage<FFlexParticleObject>().size();
-
-	if(_flexParticlesToAdd.empty() && _flexParticlesToRemove.empty())
-		return;
-
-	// spawn particles
-	for(FGraphNodeHandle handle : _flexParticlesToAdd)
-	{
-		FGraphNode& node = handle(graphSimulation);
-
-		if(!node.isValid())
-			continue;
-
-		if(	!node.hasComponent<FVelocityGraphObject>() ||
-			!node.hasComponent<FFlexParticleObject>() )
-			continue;
-
-		FFlexParticleObject& particleObject = node.component<FFlexParticleObject>(graphSimulation);
-		FVelocityGraphObject& velocityObject = node.component<FVelocityGraphObject>(graphSimulation);
-
-		FVector p = node.position;
-		FVector v = velocityObject.linearVelocity;
-
-		positions[node.id] = p;
-		positions[node.id].W = 0.125;
-		
-		velocities[node.id] = v;
-		
-		phases[node.id] = NvFlexMakePhaseWithChannels( particleObject.group, particleObject.selfCollide ? eNvFlexPhaseSelfCollide : 0, particleObject.channel );
-	}
-
-	// We don't need to remove particles, just deactivate them.
-	// We do this by update the active set for the entire simulation---brute force, 
-	// but we do more expensive things like reading every particle position.
-	{
-		auto& flexParticles = graphSimulation.componentStorage<FFlexParticleObject>();
-
-		size_t i = 0;
-		for( FFlexParticleObject& particle : flexParticles )
-		{
-			active[i] = particle.nodeIndex;
-
-			++i;
-		}
-
-		// We don't have to worry about setting inactive particles, because NvFlexSetActiveCount will truncate the active array
-		// to just the indices we set above.
-	}
-
-	_flexParticlesToAdd.clear();
-	_flexParticlesToRemove.clear(); // we don't need to parse this guy, it's handled implicitly by the above loop
-}
-
 auto FFlexSimulation::_spawnDespawnSprings() -> void
 {
 	if (_flexSpringsToAdd.empty() && _flexSpringsToRemove.empty())
@@ -1088,38 +1025,6 @@ void FFlexSimulation::_hackInitChannels()
 		particleObject.channel = onSurface ? eNvFlexPhaseShapeChannel1 : eNvFlexPhaseShapeChannel0;
 	}
 }
-
-void FFlexSimulation::_loadPositionsAndVelocities(FVector4 * positions, FVector * velocities, int * phases, int * active)
-{
-	auto& flexParticles = graphSimulation.componentStorage<FFlexParticleObject>();
-
-	nParticles = flexParticles.size();
-
-	for (FFlexParticleObject& particleObject : flexParticles)
-	{
-		phases[particleObject.nodeIndex] = NvFlexMakePhaseWithChannels(particleObject.group, particleObject.selfCollide ? eNvFlexPhaseSelfCollide : 0, particleObject.channel);
-
-		positions[particleObject.nodeIndex] = graphSimulation.node(particleObject.nodeIndex).position;
-		positions[particleObject.nodeIndex].W = particleObject.inverseMass;
-	}
-
-	// activate
-	size_t i = 0;
-	for (FFlexParticleObject& particle : flexParticles)
-	{
-		active[i] = particle.nodeIndex;
-
-		++i;
-	}
-
-	auto& flexVelocities = graphSimulation.componentStorage<FVelocityGraphObject>();
-
-	for (FVelocityGraphObject& velocityObject : flexVelocities)
-		velocities[velocityObject.nodeIndex] = velocityObject.linearVelocity;
-}
-
-
-
 
 void FFlexSimulation::_loadSprings()
 {
@@ -1370,23 +1275,25 @@ auto FFlexSimulation::_writeFlexState( FVector4 * positions, FVector * velocitie
 	// write positions
 	auto& particles = graphSimulation.componentStorage<FFlexParticleObject>();
 
-	size_t i = 0;
+	nParticles = particles.size();
+
+	size_t activeIndex = 0;
 
 	for(FFlexParticleObject& particle : particles)
 	{
 		FGraphNode& node = graphSimulation.node( particle.nodeIndex );
 
-		FVector4& p = positions[node.id];
+		positions[node.id] = node.position;
+		positions[node.id].W = particle.inverseMass;
 
-		float w = p.W;
+		phases[node.id] = NvFlexMakePhaseWithChannels(
+			particle.group, 
+			(particle.selfCollide ? eNvFlexPhaseSelfCollide : 0) | (particle.isFlud ? eNvFlexPhaseFluid : 0), 
+			particle.channel);
 
-		p = FVector4( node.position, w );
+		active[activeIndex] = particle.nodeIndex;
 
-		phases[i] = NvFlexMakePhaseWithChannels(particle.group, particle.selfCollide ? eNvFlexPhaseSelfCollide : 0, particle.channel);
-
-		active[i] = particle.nodeIndex;
-
-		++i;
+		++activeIndex;
 	}
 
 	// write velocities
@@ -1394,9 +1301,9 @@ auto FFlexSimulation::_writeFlexState( FVector4 * positions, FVector * velocitie
 
 	for(FVelocityGraphObject& velocityObject : velocityObjects)
 	{
-		auto id = velocityObject.nodeIndex;
+		auto nodeID = velocityObject.nodeIndex;
 
-		velocities[id] = velocityObject.linearVelocity;
+		velocities[nodeID] = velocityObject.linearVelocity;
 	}
 }
 
@@ -1578,9 +1485,6 @@ void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType typ
 
 	if (type == _FFlexParticleObjectType)
 	{
-		_flexParticlesToAdd.insert(handle);
-		_flexParticlesToRemove.erase(handle);
-
 		FGraphNode& node = graphSimulation.node(handle);
 
 		FFlexParticleObject& particle = node.component<FFlexParticleObject>(graphSimulation);
@@ -1604,8 +1508,6 @@ void FFlexSimulation::componentRemoved( FGraphNodeHandle node, ComponentType typ
 {
 	if (type != _FFlexParticleObjectType)
 	{
-		_flexParticlesToRemove.insert(node);
-		_flexParticlesToAdd.erase(node);
 	}
 	else if (type == _FFlexRigidObjectType)
 	{
@@ -1867,6 +1769,7 @@ void UATPSynthaseSimulation::flexTick(
 {
 	auto& synthases = graph->componentStorage<FATPSynthaseGraphObject>();
 	auto& hydrogens = graph->componentStorage<FHydrogenGraphObject>();
+	auto& particles = graph->componentStorage<FFlexParticleObject>();
 
 	const int stride = maxParticles;
 
@@ -1880,6 +1783,8 @@ void UATPSynthaseSimulation::flexTick(
 
 	for(FATPSynthaseGraphObject& synthase : synthases)
 	{
+		if( !synthase.isValid() ) continue;
+
 		auto nodeIndex = synthase.nodeIndex;
 		FGraphNode& atpSynthaseNode = graph->node(nodeIndex);
 
@@ -1892,12 +1797,12 @@ void UATPSynthaseSimulation::flexTick(
 		const float interactionRadiusSqrd = synthase.hyrogenInteractionRadius * synthase.hyrogenInteractionRadius;
 
 		int nodeIndex_flexInternal = apiToInternal[nodeIndex];
+		int neighborCount = neighbourCounts[nodeIndex_flexInternal];
 
 		// use hydrogen to spin
 		if(synthase.timerH < 0.0f)
 		{
 			// check neighbours for hydrogen
-			int neighborCount = neighbourCounts[nodeIndex_flexInternal];
 
 			float nearestSqrdDistance = std::numeric_limits<float>::max();
 			FGraphNodeHandle nearestHydrogen;
@@ -1939,11 +1844,18 @@ void UATPSynthaseSimulation::flexTick(
 
 				FVector direction = hydrogenNode.position - atpSynthaseNode.position;
 
-				bool isAbove = FVector::DotProduct( direction, atpSynthaseUp ) > 0;
+				float dot = FVector::DotProduct(direction.GetSafeNormal(), atpSynthaseUp.GetSafeNormal());
+
+				float angle = FMath::Acos(-dot);
+
+				bool isAbove = dot > 0;
+
+				const float maxAngle = FMath::DegreesToRadians(45.0f);
+
 
 				// hydrogen enters through the bottom of ATPSynthase, through it and out the top
 				// so, only interact with hydrogen below
-				if(isAbove)
+				if(isAbove || angle > maxAngle)
 					continue;
 
 				float distanceSqrd = direction.SizeSquared();
@@ -1964,8 +1876,7 @@ void UATPSynthaseSimulation::flexTick(
 			{
 				FGraphNode& hydrogenNode = nearestHydrogen(graph);
 
-				// teleport hydrogen and spin
-				// ---
+				// spin
 				UEvent_SpinATPSynthase& spinEvent = timeline->recordEvent<UEvent_SpinATPSynthase>(hydrogenNode.position);
 				spinEvent.triggeringAgent = FGraphNodeHandle(hydrogenNode);
 				spinEvent.otherAgents.Add(FGraphNodeHandle(atpSynthaseNode));
@@ -1986,10 +1897,22 @@ void UATPSynthaseSimulation::flexTick(
 				spinner.angularVelocityMagnitude = 5.0f;
 
 				// teleport hydrogen
-				hydrogenNode.position = atpSynthaseNode.position + atpSynthaseUp * 4.0;
+				F3PointPathFollower& follower = hydrogenNode.addComponent<F3PointPathFollower>(*graph);
 
-				if (hydrogenNode.hasComponent<FVelocityGraphObject>())
-					hydrogenNode.component<FVelocityGraphObject>(*graph).linearVelocity = atpSynthaseUp * 4.0f;
+				follower.points[0] = hydrogenNode.position;
+				follower.points[1] = atpSynthaseNode.position - atpSynthaseUp * .75f;
+				follower.points[2] = atpSynthaseNode.position + atpSynthaseUp * 4.0f;
+
+				follower.terminalVelocity = atpSynthaseUp * 4.0f;
+
+				follower.duration = 1.0f;
+
+				// disable particle interaction
+				if (FFlexParticleObject * particle = particles.componentPtrForNode(nearestHydrogen))
+				{
+					follower.restoreChannel = particle->channel;
+					particle->channel = 1;
+				}
 
 				if (hydrogenNode.hasComponent<FRandomWalkGraphObject>())
 					hydrogenNode.component<FRandomWalkGraphObject>(*graph).timeLeft = 2.0f;
@@ -2117,11 +2040,64 @@ void UATPSynthaseSimulation::flexTick(
 	}
 
 	_tickProtonPumps( deltaT, neighbourIndices, neighbourCounts, apiToInternal, internalToAPI, maxParticles );
+	_tickFollowPath(deltaT);
 
 	graph->endTransaction();
 }
 
 
+
+void UATPSynthaseSimulation::_tickFollowPath(float deltaT)
+{
+	auto& pathFollowers = graph->componentStorage<F3PointPathFollower>();
+	auto& particles = graph->componentStorage<FFlexParticleObject>();
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+	for (F3PointPathFollower& follower : pathFollowers)
+	{
+		if( !follower.isValid() ) continue;
+
+		FGraphNode& node = graph->node(follower.nodeHandle());
+
+
+		
+		const int n = 3;
+
+		const float t = follower.time / follower.duration;
+
+		const int a_i = int(t * (n - 1));
+		const int b_i = a_i + 1;
+
+		// remainder
+		const float u = t * (n - 1) - float(a_i);
+
+		const FVector& a = follower.points[a_i];
+		const FVector& b = follower.points[b_i];
+
+		FVector last = node.position;
+		node.position = a * (1.0f - u) + b * u;
+
+
+		// the path is done, kill it
+		if (follower.time > follower.duration)
+		{
+			if (FFlexParticleObject * particle = particles.componentPtrForNode(follower.nodeHandle()))
+				particle->channel = follower.restoreChannel;
+
+			if (FVelocityGraphObject * velocity = velocities.componentPtrForNode(follower.nodeHandle()))
+				velocity->linearVelocity = follower.terminalVelocity;
+
+			node.removeComponent<F3PointPathFollower>(*graph);
+			continue;
+		}
+
+
+
+
+		follower.time += deltaT;
+	}
+
+}
 
 void UATPSynthaseSimulation::_tickProtonPumps( 
 	float deltaT,
@@ -2132,13 +2108,18 @@ void UATPSynthaseSimulation::_tickProtonPumps(
 	int maxParticles )
 {
 	auto& protonPumps = graph->componentStorage<FProtonPumpGraphObject>();
+	auto& particles = graph->componentStorage<FFlexParticleObject>();
 
 	UTimelineSimulation * timeline = simulationManager->simulation<UTimelineSimulation>();
 
 	const int stride = maxParticles;
 
+	const float interactionRadiusSqrd = std::pow(hyrogenInteractionRadius, 2.0f);
+
 	for(FProtonPumpGraphObject& pump : protonPumps)
 	{
+		if( !pump.isValid() ) continue;
+
 		auto nodeIndex = pump.nodeIndex;
 		FGraphNode& pumpNode = graph->node( nodeIndex );
 
@@ -2148,17 +2129,15 @@ void UATPSynthaseSimulation::_tickProtonPumps(
 		FVector pumpUp = FVector::UpVector;
 		pumpUp = pumpNode.orientation.RotateVector( pumpUp );
 
-		const float interactionRadiusSqrd = pump.hyrogenInteractionRadius * pump.hyrogenInteractionRadius;
 
 		int nodeIndex_flexInternal = apiToInternal[nodeIndex];
+		int neighborCount = neighbourCounts[nodeIndex_flexInternal];
 
-		// use hydrogen to spin
 		if(pump.timerH < 0.0f)
 		{
 			// check neighbours for hydrogen
-			int neighborCount = neighbourCounts[nodeIndex_flexInternal];
 
-			FGraphNodeHandle nearest;
+			FGraphNodeHandle nearestHydrogen;
 			float nearestDistanceSqrd = std::numeric_limits<float>::max();
 
 			for(int ni = 0; ni < neighborCount; ++ni)
@@ -2167,29 +2146,26 @@ void UATPSynthaseSimulation::_tickProtonPumps(
 
 				FGraphNode& hydrogenNode = graph->node( neighborIndex );
 
-				if(!hydrogenNode.hasComponent<FHydrogenGraphObject>())
-					continue;
-
-				if (!hydrogenNode.hasComponent<FVelocityGraphObject>())
-					continue;
+				if(!hydrogenNode.hasComponent<FHydrogenGraphObject>()) continue;
+				if(!hydrogenNode.hasComponent<FVelocityGraphObject>()) continue;
+				// if it's already pumped, don't pump it
+				if(hydrogenNode.hasComponent<F3PointPathFollower>()) continue;
 
 				FVector direction = hydrogenNode.position - pumpNode.position;
 
-				bool isAbove = FVector::DotProduct( direction, pumpUp ) > 0;
+				float dot = FVector::DotProduct(direction.GetSafeNormal(), pumpUp.GetSafeNormal());
+
+				float angle = FMath::Acos(dot);
+
+				bool isBelow = dot < 0;
+
+				const float maxAngle = FMath::DegreesToRadians(60.0f);
 
 				// hydrogen through the top
-				if(!isAbove)
+				if(isBelow || angle > maxAngle)
 					continue;
 
-				// apply acceleration
-				//FVelocityGraphObject& velocityObject = hydrogenNode.component<FVelocityGraphObject>(*graph);
-
 				float distanceSqrd = direction.SizeSquared();
-
-				//float a = _g / distanceSqrd;
-
-				//velocityObject.linearVelocity = velocityObject.linearVelocity + (direction.GetSafeNormal() * -a * deltaT);
-
 
 				if(distanceSqrd > interactionRadiusSqrd)
 					continue;
@@ -2197,13 +2173,13 @@ void UATPSynthaseSimulation::_tickProtonPumps(
 				if (distanceSqrd < nearestDistanceSqrd)
 				{
 					nearestDistanceSqrd = distanceSqrd;
-					nearest = FGraphNodeHandle(hydrogenNode.id);
+					nearestHydrogen = FGraphNodeHandle(hydrogenNode.id);
 				}
 			}
 
-			if (nearest)
+			if (nearestHydrogen)
 			{
-				FGraphNode& hydrogenNode = nearest(graph);
+				FGraphNode& hydrogenNode = graph->node(nearestHydrogen);
 
 				// record the event before we mess with the position
 				UEvent_ProtonPumped& protonPumpedEvent = timeline->recordEvent<UEvent_ProtonPumped>(hydrogenNode.position);
@@ -2212,14 +2188,26 @@ void UATPSynthaseSimulation::_tickProtonPumps(
 				protonPumpedEvent.otherAgents.Add(FGraphNodeHandle(pumpNode));
 
 				// teleport hydrogen
-				hydrogenNode.position = pumpNode.position - pumpUp * 0.1;
+				F3PointPathFollower& follower = hydrogenNode.addComponent<F3PointPathFollower>(*graph);
 
-				FVelocityGraphObject& velocityObject = hydrogenNode.component<FVelocityGraphObject>(*graph);
+				follower.points[0] = hydrogenNode.position;
+				follower.points[1] = pumpNode.position + pumpUp * 2.5f;
+				follower.points[2] = pumpNode.position - pumpUp * 2.5f;
 
-				velocityObject.linearVelocity = -pumpUp * 4.0f;
+				follower.terminalVelocity = -pumpUp * 3.0f;
+
+				follower.duration = 1.0f;
+
+				// disable particle interaction
+				if (FFlexParticleObject * particle = particles.componentPtrForNode(nearestHydrogen))
+				{
+					follower.restoreChannel = particle->channel;
+					particle->channel = 1;
+				}
 
 				if (hydrogenNode.hasComponent<FRandomWalkGraphObject>())
-					hydrogenNode.component<FRandomWalkGraphObject>(*graph).timeLeft = 1.0f;
+					hydrogenNode.component<FRandomWalkGraphObject>(*graph).timeLeft = 2.0f;
+
 
 				pump.timerH = pump.refractoryPeriodH;
 			}
