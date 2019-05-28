@@ -723,13 +723,16 @@ namespace tcods
     void Mesh :: buildPrimalSpanningTree( void )
     {
         VertexIter root = vertices.begin();
-        while( root->onBoundary() ) root++;
-        
+        while(root != vertices.end() && root->onBoundary()  ) root++;
+
         for( VertexIter v = vertices.begin(); v != vertices.end(); v++ )
         {
             v->parent = v;
         }
-        
+
+		if (root == vertices.end())
+			return;
+
         queue<VertexIter> Q;
         Q.push( root );
         while( !Q.empty() )
