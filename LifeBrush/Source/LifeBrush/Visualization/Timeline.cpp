@@ -18,6 +18,8 @@ void UTimelineSimulation::attach()
 	_loadAllFrameEvents();
 
 	_currentFrame = NewObject<USEGraphFrame>(this);
+
+	setGlyphVisibility(false);
 }
 
 void UTimelineSimulation::tick(float deltaT)
@@ -116,8 +118,6 @@ void UTimelineSimulation::endFrame()
 {
 	if (!_didGenerateEventsInFrame)
 		return;
-
-	_currentFrame->snapshot.snapshot(*graph);
 
 	timeline->sparseFrames.Add(_currentFrame->number, _currentFrame);
 
@@ -259,6 +259,8 @@ void UTimelineSimulation::_initISMCs()
 
 			mesh->SetStaticMesh(key.staticMesh);
 			mesh->SetMaterial(0, key.material);
+			mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			mesh->SetCollisionProfileName(TEXT("NoCollision"));
 
 			mesh->RegisterComponent();
 
@@ -494,13 +496,15 @@ void UTimelineSimulation::_expandFrames2(
 		{
 			didAddCount++;
 
-			if (didAddCount >= maxEventHops)
+			if (didAddCount > maxEventHops)
 				break;
 		}
 	}
 
 	// forward loop (past start)
 	TSet<FGraphNodeHandle> forwardsAgents;
+
+	didAddCount = 0;
 
 	forwardsAgents.Add(graphEvent->triggeringAgent);
 	forwardsAgents.Append(graphEvent->otherAgents);
@@ -513,7 +517,7 @@ void UTimelineSimulation::_expandFrames2(
 		{
 			didAddCount++;
 
-			if (didAddCount >= maxEventHops)
+			if (didAddCount > maxEventHops)
 				break;
 		}
 	}
@@ -595,6 +599,16 @@ void UTimelineSimulation::showAllEvents()
 
 
 
+
+void UTimelineSimulation::setGlyphVisibility(bool visible)
+{
+	for (auto& pair : _instancedStaticeMeshes)
+	{
+		UInstancedStaticMeshComponent * ismc = pair.second;
+		
+		ismc->SetVisibility(visible);
+	}
+}
 
 void UVisualization_AgentPathLines::attach()
 {
@@ -775,6 +789,8 @@ void UVisualization_AgentPathLines::_tickVisibility(float deltaT)
 
 	auto& meshes = graph->componentStorage<FGraphMesh>();
 
+	bool desaturate = !_totalHistoryAgents.empty();
+
 	for (FGraphMesh& mesh : meshes)
 	{
 		if( !mesh.isValid() ) continue;
@@ -791,6 +807,7 @@ void UVisualization_AgentPathLines::_tickVisibility(float deltaT)
 		if (_totalHistoryAgents.find(handle) != _totalHistoryAgents.end())
 		{
 			mesh.visible = cachcedVisibility;
+			mesh.desaturated = false;
 			continue;
 		}
 
@@ -807,6 +824,7 @@ void UVisualization_AgentPathLines::_tickVisibility(float deltaT)
 		bool hit = pathBVH.getIntersection(ray, intersection, true, true);
 
 		mesh.visible = !hit;
+		mesh.desaturated = desaturate;
 	}
 }
 
@@ -882,6 +900,16 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 		}
 
 		last = &current;
+	}
+
+	// connect to the current agent position
+	for (FGraphNodeHandle agent : agents)
+	{
+		FVector p = graph->node(agent).position;
+
+		auto& builder = lineBuilders[agent];
+
+		builder.addPoint(p, radius);
 	}
 
 	// find the longest
@@ -992,6 +1020,8 @@ void UVisualization_AgentPathLines::showTotalHistoryForAgents(const std::vector<
 
 		int32 section = _sectionForMaterial(material);
 
+		builder.numCircleComponents = 12;
+
 		_agentPathFactory->commitSection(builder, section, material);
 	}
 
@@ -1005,7 +1035,9 @@ void UVisualization_AgentPathLines::showTotalHistoryForAgents(const std::vector<
 
 		// grow the radius
 		for (auto& e : builder.lineSegments)
-			e.radius += 2.0f;
+			e.radius += 5.0f;
+
+		builder.numCircleComponents = 4;
 
 		builder.appendToQuadFactory(fatEdgeFactory, _agentPathFactory->uvBottomY, _agentPathFactory->uvTopY, _agentPathFactory->uvXScale);
 	}
@@ -1061,6 +1093,52 @@ void UVisualization_AgentPathLines::_cachePositions()
 
 		lastPositionCache[node.id] = node.position;
 	}
+}
+
+void UVisualization_AgentPathLines::_fadeBackground(bool fade)
+{
+	//auto proxy = Super::CreateSceneProxy();
+
+	//if (!this->PerInstanceRenderData.IsValid())
+	//	return proxy;
+
+	//const bool bSupportsVertexHalfFloat = GVertexElementTypeSupport.IsSupported(VET_Half2);
+
+	//int32 n = this->PerInstanceRenderData->InstanceBuffer.GetNumInstances();
+
+	//const auto m = 1024;
+
+	//if (n > 0)
+	//{
+	//	float scale = float(m - 1);
+
+	//	if (bSupportsVertexHalfFloat)
+	//	{
+	//		auto constRawData = static_cast<const FInstanceStream16*>(this->PerInstanceRenderData->InstanceBuffer.GetRawData());
+
+	//		FInstanceStream16 * RESTRICT instanceData = const_cast<FInstanceStream16*>(constRawData);
+
+	//		// rewrite the instance randoms ids to instance ids
+	//		for (int32 instance = 0; instance < n; ++instance)
+	//		{
+	//			instanceData[instance].InstanceOrigin.W = float(instance) / scale;
+	//		}
+	//	}
+	//	else
+	//	{
+	//		auto constRawData = static_cast<const FInstanceStream32*>(this->PerInstanceRenderData->InstanceBuffer.GetRawData());
+
+	//		FInstanceStream32 * RESTRICT instanceData = const_cast<FInstanceStream32*>(constRawData);
+
+	//		// rewrite the instance randoms ids to instance ids
+	//		for (int32 instance = 0; instance < n; ++instance)
+	//		{
+	//			instanceData[instance].InstanceOrigin.W = float(instance) / scale;
+	//		}
+	//	}
+	//}
+
+	//return proxy;
 }
 
 void UVisualization_AgentPathLines::captureFrame()

@@ -16,7 +16,7 @@ struct FFlexSimulation;
 
 
 UCLASS(BlueprintType)
-class LIFEBRUSH_API UEventVisualizationTool : public UTool
+class LIFEBRUSH_API UEventVisualizationTool : public UBrushTool
 {
 	GENERATED_BODY()
 
@@ -49,8 +49,6 @@ protected:
 
 	void _traceSelection(TSet<USEGraphEvent*>& selection);
 
-	float _brushRadius();
-
 protected:
 	FFlexSimulation * _flexSimulation;
 	UCameraComponent * _camera;
@@ -66,7 +64,7 @@ protected:
 
 
 UCLASS(BlueprintType)
-class LIFEBRUSH_API UAgentPathlineTool : public UTool
+class LIFEBRUSH_API UAgentPathlineTool : public UBrushTool
 {
 	GENERATED_BODY()
 
@@ -98,8 +96,6 @@ protected:
 	void _selectAgent(float dt, UPrimitiveComponent * hand, FTransform lastTransform);
 
 	void _pathlinesForSelection(TSet<FGraphNodeHandle>& selection);
-
-	float _brushRadius();
 
 protected:
 	FFlexSimulation * _flexSimulation;

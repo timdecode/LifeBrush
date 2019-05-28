@@ -12,21 +12,33 @@
 
 void UEventVisualizationTool::gainFocus()
 {
+	Super::gainFocus();
 
+	UTimelineSimulation * timeline = _flexSimulation->simulationManager.simulation<UTimelineSimulation>();
+
+	timeline->setGlyphVisibility(true);
 }
 
 void UEventVisualizationTool::loseFocus()
 {
+	Super::loseFocus();
 
+	UTimelineSimulation * timeline = _flexSimulation->simulationManager.simulation<UTimelineSimulation>();
+
+	timeline->setGlyphVisibility(false);
 }
 
 void UEventVisualizationTool::oneHandStart(UPrimitiveComponent * hand)
 {
+	Super::oneHandStart(hand);
+
 	_selection.Empty();
 }
 
 void UEventVisualizationTool::oneHandEnd(UPrimitiveComponent * hand)
 {
+	Super::oneHandEnd(hand);
+
 	if( _selection.Num() )
 		_traceSelection(_selection);
 	else
@@ -47,11 +59,12 @@ void UEventVisualizationTool::oneHandEnd(UPrimitiveComponent * hand)
 void UEventVisualizationTool::tick(float dt)
 {
 
-
 }
 
 void UEventVisualizationTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
+	Super::tickOneHand(dt, hand, lastTransform);
+
 	_selectEvent(dt, hand, lastTransform);
 }
 
@@ -66,11 +79,6 @@ void UEventVisualizationTool::faceDown_released()
 void UEventVisualizationTool::faceUp_released(USceneComponent * interactionPoint /* = nullptr */)
 {
 	physicalInteraction = !physicalInteraction;
-}
-
-float UEventVisualizationTool::_brushRadius()
-{
-	return 2.0f + 6.0 * selectionATriggerValue();
 }
 
 void UEventVisualizationTool::_selectEvent(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
@@ -114,21 +122,25 @@ void UEventVisualizationTool::_traceSelection(TSet<USEGraphEvent*>& selection)
 
 void UAgentPathlineTool::gainFocus()
 {
-
+	Super::gainFocus();
 }
 
 void UAgentPathlineTool::loseFocus()
 {
-
+	Super::loseFocus();
 }
 
 void UAgentPathlineTool::oneHandStart(UPrimitiveComponent * hand)
 {
+	Super::oneHandStart(hand);
+
 	_selection.Empty();
 }
 
 void UAgentPathlineTool::oneHandEnd(UPrimitiveComponent * hand)
 {
+	Super::oneHandEnd(hand);
+
 	if (_selection.Num())
 		_pathlinesForSelection(_selection);
 	else
@@ -151,6 +163,8 @@ void UAgentPathlineTool::tick(float dt)
 
 void UAgentPathlineTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
+	Super::tickOneHand(dt, hand, lastTransform);
+
 	_selectAgent(dt, hand, lastTransform);
 }
 
@@ -165,11 +179,6 @@ void UAgentPathlineTool::faceDown_released()
 void UAgentPathlineTool::faceUp_released(USceneComponent * interactionPoint /* = nullptr */)
 {
 	physicalInteraction = !physicalInteraction;
-}
-
-float UAgentPathlineTool::_brushRadius()
-{
-	return 2.0f + 6.0 * selectionATriggerValue();
 }
 
 void UAgentPathlineTool::_selectAgent(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
@@ -207,7 +216,7 @@ void UAgentPathlineTool::_pathlinesForSelection(TSet<FGraphNodeHandle>& selectio
 
 	int32 curFrame = _flexSimulation->graphSimulation.tickCount;
 
-	pathlines->showTotalHistoryForAgents(agents, curFrame - timeline->maxPathHistory, curFrame + timeline->maxPathHistory);
+	pathlines->showTotalHistoryForAgents(agents, 0, curFrame);
 }
 
 void UPhysicalInteractionTool::loseFocus()

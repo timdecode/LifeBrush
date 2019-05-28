@@ -58,9 +58,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 number = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
-	FGraphSnapshot snapshot;
-
 	UPROPERTY(Transient)
 	TArray<USEGraphEvent*> events;
 };
@@ -171,6 +168,8 @@ public:
 
 	// -1, use maxFramesBack to find minFrame
 	void showAllEvents();
+
+	void setGlyphVisibility(bool visibility);
 
 protected:
 	void _clearVisualizations();
@@ -313,6 +312,8 @@ protected:
 
 	void _cachePositions();
 
+	void _fadeBackground(bool fade);
+
 	int32 _sectionForMaterial(UMaterialInterface* material);
 
 	FLinearColor _colorForNode(FGraphNodeHandle node);
@@ -341,4 +342,7 @@ protected:
 	float _timer = 0.0f;
 
 	int32 historyIndex = 0;
+
+	UPROPERTY()
+	UTexture2D * _valuesTexture = nullptr;
 };
