@@ -495,6 +495,7 @@ public:
 	static ChunkGeometry marchingCubes_byChunkAccessFast(
 		float isoLevel,
 		ChunkGrid<ElementType>& grid,
+		PaddedUniformGrid<ElementType>& chunk,
 		FIntVector chunkIndex,
 		FIntVector cellMin,
 		FIntVector cellMax, // inclusive (that is, up to and including)
@@ -538,7 +539,6 @@ public:
 		GridCell cell;
 		Triangle triangles[5];
 
-		PaddedUniformGrid<ElementType>& chunk = grid.chunkAtChunkIndex(chunkIndex);
 		const FIntVector dim = chunk.dimensions();
 		const FIntVector chunkGridStart = grid.gridIndexFromChunkIndex(chunkIndex);
 
@@ -569,10 +569,10 @@ public:
 					{
 						const FIntVector& index = indices[c];
 
-						//if (index.X < dim.X - 1 && index.Y < dim.Y - 1 && index.Z < dim.Z - 1 &&
-						//	index.X > 0 && index.Y > 0 && index.Z > 0 )
-						if (index.X <= dim.X && index.Y <= dim.Y && index.Z <= dim.Z &&
-							index.X >= 0 && index.Y >= 0 && index.Z >= 0) 
+						if (index.X < dim.X - 1 && index.Y < dim.Y - 1 && index.Z < dim.Z - 1 &&
+							index.X > 0 && index.Y > 0 && index.Z > 0 )
+						//if (index.X <= dim.X && index.Y <= dim.Y && index.Z <= dim.Z &&
+						//	index.X >= 0 && index.Y >= 0 && index.Z >= 0) 
 						{
 							g[c] = normalSign * chunk.normalAt(index);
 							cell.v[c] = FVector4(g[c].X, g[c].Y, g[c].Z, chunk(indices[c]));
@@ -725,6 +725,27 @@ public:
 
 		FIntVector chunkIndex = fromChunkIndex;
 
+		struct IndexAndChunk
+		{
+			FIntVector index;
+			ChunkGeometry geometry;
+		};
+
+		std::vector<TFuture<IndexAndChunk>> futures;
+
+		// preallocate chunks so we don't do it on an async thread
+		for (chunkIndex.Z = fromChunkIndex.Z; chunkIndex.Z <= toChunkIndex.Z; chunkIndex.Z++)
+		{
+			for (chunkIndex.Y = fromChunkIndex.Y; chunkIndex.Y <= toChunkIndex.Y; chunkIndex.Y++)
+			{
+				for (chunkIndex.X = fromChunkIndex.X; chunkIndex.X <= toChunkIndex.X; chunkIndex.X++)
+				{
+					// gotta access this on this thread because it can create a chunk
+					auto& chunk = grid.chunkAtChunkIndex(chunkIndex);
+				}
+			}
+		}
+
 		for (chunkIndex.Z = fromChunkIndex.Z; chunkIndex.Z <= toChunkIndex.Z; chunkIndex.Z++)
 		{
 			for (chunkIndex.Y = fromChunkIndex.Y; chunkIndex.Y <= toChunkIndex.Y; chunkIndex.Y++)
@@ -754,11 +775,29 @@ public:
 							localToCell[c] = maxDim - 1;
 					}
 
-					result[chunkIndex] = marchingCubes_byChunkAccessFast(isoLevel, grid, chunkIndex, localFromCell, localToCell, uvScale, reverseWinding, flatShading);
+					futures.emplace_back(Async<IndexAndChunk>(EAsyncExecution::ThreadPool, [=,&grid]() mutable
+					{
+						IndexAndChunk chunkAndIndex;
+
+						auto& chunk = grid.chunkAtChunkIndex(chunkIndex);
+
+						chunkAndIndex.geometry = marchingCubes_byChunkAccessFast(isoLevel, grid, chunk, chunkIndex, localFromCell, localToCell, uvScale, reverseWinding, flatShading);
+						chunkAndIndex.index = chunkIndex;
+
+						return chunkAndIndex;
+					}));
 				}
 			}
 		}
 
+		// join the results from the async tasks
+		for (auto& future : futures)
+		{
+			const IndexAndChunk& chunkAndIndex = future.Get();
+
+			result[chunkAndIndex.index] = std::move(chunkAndIndex.geometry);
+		}
+			
 		return result;
 	}
 
