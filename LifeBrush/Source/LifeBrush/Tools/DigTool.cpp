@@ -44,29 +44,7 @@ void UDigTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform las
 
 	UWorld * world = hand->GetWorld();
 
-	//TArray<FOverlapResult> overlaps;
-
-	//FCollisionShape collisionShape = FCollisionShape::MakeSphere( 20.0f );
-
-	//FCollisionQueryParams params;
-	//params.bTraceComplex = false; // we want convex collision, not per triangle hits
-
-	//world->OverlapMultiByChannel( overlaps,
-	//	hand->GetComponentLocation(),
-	//	hand->GetComponentRotation().Quaternion(),
-	//	ECC_WorldStatic,
-	//	collisionShape,
-	//	params );
-	//
-	//for (FOverlapResult& result : overlaps)
-	//{
-	//	AActor * actor = result.GetActor();
-
-	//	UChunkedVolumeComponent * volume = actor->FindComponentByClass<UChunkedVolumeComponent>();
-
-
 	// HACK, for now, we'll dig everywhere
-
 	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator )
 	{
 		UChunkedVolumeComponent * volume = *iterator;
@@ -83,10 +61,57 @@ void UDigTool::tickOneHand( float dt, UPrimitiveComponent * hand, FTransform las
 
 		float volumeRadius = _brushRadius() / transformScale;
 
-		if(_digMode == EDigMode::Adding || _digMode == EDigMode::Removing)
-			_dig( volume, volumePosition, volumeRadius, dt );
+		if (_digMode == EDigMode::Adding || _digMode == EDigMode::Removing)
+		{
+			if( digShape == EDigShape::Sphere )
+				_dig(volume, volumePosition, volumeRadius, dt);
+			else if (digShape == EDigShape::Capsule)
+			{
+				FVector offset = FVector::ForwardVector * capsuleLength * 0.5f;
+				offset = hand->GetComponentTransform().TransformVectorNoScale(offset);
+				offset = transform.InverseTransformVector(offset);
+
+				_capsuleDig(volume, volumePosition - offset, volumePosition + offset, volumeRadius, dt);
+			}
+		}
 		else if(_digMode == EDigMode::Smoothing)
 			_smooth( volume, volumePosition, volumeRadius );
+
+		_lastVolume = volume;
+	}
+}
+
+void UDigTool::tickTwoHand(float dt, UPrimitiveComponent * handA, UPrimitiveComponent * handB, FTransform lastTransformA, FTransform lastTransformB)
+{
+	if (_selectionMeshComponent)
+	{
+		_selectionMeshComponent->SetRelativeScale3D(FVector(_brushRadius() * selectionMeshScaleFactor));
+	}
+
+	UWorld * world = handA->GetWorld();
+
+	// HACK, for now, we'll dig everywhere
+	for (TObjectIterator<UChunkedVolumeComponent> iterator; iterator; ++iterator)
+	{
+		UChunkedVolumeComponent * volume = *iterator;
+
+		if (!volume || volume->GetWorld() != flexComponent->GetWorld())
+			continue;
+
+		FTransform transform = volume->GetOwner()->GetRootComponent()->GetComponentToWorld();
+
+		FVector volumeStart = transform.InverseTransformPosition(handA->GetComponentLocation());
+		FVector volumeEnd = transform.InverseTransformPosition(handB->GetComponentLocation());
+
+		float transformScale = transform.GetMaximumAxisScale();
+		transformScale = FMath::IsNearlyZero(transformScale) ? 1.0f : transformScale;
+
+		float volumeRadius = _brushRadius() / transformScale;
+
+		if (_digMode == EDigMode::Adding || _digMode == EDigMode::Removing)
+		{
+			_capsuleDig(volume, volumeStart, volumeEnd, volumeRadius, dt);
+		}
 
 		_lastVolume = volume;
 	}
@@ -348,42 +373,42 @@ void UDigTool::_destroySelectionMeshComponent()
 
 void UDigTool::_smooth( UChunkedVolumeComponent * volume, FVector volumePosition, float volumeRadius )
 {
-	ChunkGrid<float>& grid = volume->grid();
+	volume->writeAccessGrid([=](ChunkGrid<float>& grid) {
+		FVector cellSize = grid.cellSize();
 
-	FVector cellSize = grid.cellSize();
+		FVector extents = cellSize * volumeRadius;
 
-	FVector extents = cellSize * volumeRadius;
+		FIntVector start = volume->componentToIndex(volumePosition - extents);
+		FIntVector end = volume->componentToIndex(volumePosition + extents);
 
-	FIntVector start = volume->componentToIndex( volumePosition - extents );
-	FIntVector end = volume->componentToIndex( volumePosition + extents );
+		FIntVector index = start;
 
-	FIntVector index = start;
+		const float rSqrd = volumeRadius * volumeRadius;
 
-	const float rSqrd = volumeRadius * volumeRadius;
-
-	// visit the cells
-	for(index.Z = start.Z; index.Z <= end.Z; index.Z++)
-	{
-		for(index.Y = start.Y; index.Y <= end.Y; index.Y++)
+		// visit the cells
+		for (index.Z = start.Z; index.Z <= end.Z; index.Z++)
 		{
-			for(index.X = start.X; index.X <= end.X; index.X++)
+			for (index.Y = start.Y; index.Y <= end.Y; index.Y++)
 			{
-				FVector p = grid.samplePoint( index );
+				for (index.X = start.X; index.X <= end.X; index.X++)
+				{
+					FVector p = grid.samplePoint(index);
 
-				float d = FVector::DistSquared( p, volumePosition );
+					float d = FVector::DistSquared(p, volumePosition);
 
-				if(d > rSqrd)
-					continue;
+					if (d > rSqrd)
+						continue;
 
-				_convolve( grid, index );
+					_convolve(grid, index);
+				}
 			}
 		}
-	}
 
-	FVector startP = volume->indexToComponent( start );
-	FVector endP = volume->indexToComponent( end );
+		FVector startP = volume->indexToComponent(start);
+		FVector endP = volume->indexToComponent(end);
 
-	volume->markDirty( startP - 2, endP + 2 );
+		volume->markDirty(startP - 2, endP + 2);
+	});
 }
 
 void UDigTool::_convolve(ChunkGrid<float>& grid, FIntVector& index )
@@ -462,48 +487,101 @@ lb::BasicGrid<float> UDigTool::_gaussianKernel( size_t n )
 
 void UDigTool::_dig( UChunkedVolumeComponent * volume, FVector volumePosition, float volumeRadius, float dt )
 {
-	ChunkGrid<float>& grid = volume->grid();
+	volume->writeAccessGrid([=](ChunkGrid<float>& grid) {
+		FVector cellSize = grid.cellSize();
 
-	FVector cellSize = grid.cellSize();
+		FVector extents = cellSize * volumeRadius;
 
-	FVector extents = cellSize * volumeRadius;
+		FIntVector start = volume->componentToIndex(volumePosition - extents);
+		FIntVector end = volume->componentToIndex(volumePosition + extents);
 
-	FIntVector start = volume->componentToIndex( volumePosition - extents );
-	FIntVector end = volume->componentToIndex( volumePosition + extents );
+		FIntVector index = start;
 
-	FIntVector index = start;
+		const float rSqrd = volumeRadius * volumeRadius;
 
-	const float rSqrd = volumeRadius * volumeRadius;
+		float newGridValue = _digMode == EDigMode::Adding ? maxValue : -maxValue;
 
-	float newGridValue = _digMode == EDigMode::Adding ? maxValue : -maxValue;
-
-	for( index.Z = start.Z; index.Z <= end.Z; index.Z++)
-	{
-		for( index.Y = start.Y; index.Y <= end.Y; index.Y++)
+		for (index.Z = start.Z; index.Z <= end.Z; index.Z++)
 		{
-			for( index.X = start.X; index.X <= end.X; index.X++)
+			for (index.Y = start.Y; index.Y <= end.Y; index.Y++)
 			{
-				FVector p = grid.samplePoint( index );
+				for (index.X = start.X; index.X <= end.X; index.X++)
+				{
+					FVector p = grid.samplePoint(index);
 
-				float d = FVector::DistSquared( p, volumePosition );
+					float d = FVector::DistSquared(p, volumePosition);
 
-				if(d > rSqrd)
-					continue; 
+					if (d > rSqrd)
+						continue;
 
-				float delta = (1.0f - (std::sqrt(d) / volumeRadius)) * newGridValue * dt * fillRate;
+					float delta = (1.0f - (std::sqrt(d) / volumeRadius)) * newGridValue * dt * fillRate;
 
-				// accumulate
-				float gridValue = grid(index);
+					// accumulate
+					float gridValue = grid(index);
 
-				gridValue += delta;
+					gridValue += delta;
 
-				if (gridValue > maxValue) gridValue = maxValue;
-				if (gridValue < 0.0f) gridValue = 0.0f;
+					if (gridValue > maxValue) gridValue = maxValue;
+					if (gridValue < 0.0f) gridValue = 0.0f;
 
-				grid.set(index, gridValue);
+					grid.set(index, gridValue);
+				}
 			}
 		}
-	}
 
-	volume->markDirtyIndex(start - FIntVector(1), end + FIntVector(1));
+		volume->markDirtyIndex(start - FIntVector(1), end + FIntVector(1));
+	});
+}
+
+void UDigTool::_capsuleDig(UChunkedVolumeComponent * volume, FVector volumeStart, FVector volumeEnd, float volumeRadius, float dt)
+{
+	volume->writeAccessGrid([=](ChunkGrid<float>& grid) {
+		FVector cellSize = grid.cellSize();
+
+		FVector extents = cellSize * volumeRadius;
+
+		FBox box(EForceInit::ForceInitToZero);
+
+		box += volumeStart + extents;
+		box += volumeStart - extents;
+		box += volumeEnd + extents;
+		box += volumeEnd - extents;
+
+		FIntVector start = volume->componentToIndex(box.Min);
+		FIntVector end = volume->componentToIndex(box.Max);
+
+		FIntVector index = start;
+
+		float newGridValue = _digMode == EDigMode::Adding ? maxValue : -maxValue;
+
+		for (index.Z = start.Z; index.Z <= end.Z; index.Z++)
+		{
+			for (index.Y = start.Y; index.Y <= end.Y; index.Y++)
+			{
+				for (index.X = start.X; index.X <= end.X; index.X++)
+				{
+					FVector p = grid.samplePoint(index);
+
+					float d = FMath::PointDistToSegment(p, volumeStart, volumeEnd);
+
+					if (d > volumeRadius)
+						continue;
+
+					float delta = (1.0f - (d / volumeRadius)) * newGridValue * dt * fillRate;
+
+					// accumulate
+					float gridValue = grid(index);
+
+					gridValue += delta;
+
+					if (gridValue > maxValue) gridValue = maxValue;
+					if (gridValue < 0.0f) gridValue = 0.0f;
+
+					grid.set(index, gridValue);
+				}
+			}
+		}
+
+		volume->markDirtyIndex(start - FIntVector(1), end + FIntVector(1));
+	});
 }

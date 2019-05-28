@@ -50,7 +50,7 @@ bool UMeshSimulation::canRunInEditor()
 
 void UMeshSimulation::snapshotToActor(AActor * actor)
 {
-	for (auto& pair : _instancedStaticeMeshes)
+	auto copyISMCs = [&](auto& pair)
 	{
 		FGraphMeshKey graphMeshKey = pair.first;
 		UInstancedStaticMeshComponent * instance = pair.second;
@@ -65,6 +65,8 @@ void UMeshSimulation::snapshotToActor(AActor * actor)
 		newInstance->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		newInstance->SetCollisionProfileName(TEXT("NoCollision"));
 		newInstance->AttachToComponent(actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+		newInstance->SetRenderCustomDepth(instance->bRenderCustomDepth);
+		newInstance->SetVisibility(instance->bVisible);
 
 		actor->AddInstanceComponent(newInstance);
 
@@ -80,7 +82,14 @@ void UMeshSimulation::snapshotToActor(AActor * actor)
 
 			newInstance->AddInstanceWorldSpace(transform);
 		}
-	}
+	};
+
+
+	for (auto& pair : _instancedStaticeMeshes)
+		copyISMCs(pair);
+
+	for (auto& pair : _desaturatedInstancedStaticMeshes)
+		copyISMCs(pair);
 }
 
 void UMeshSimulation::updateInstances()
@@ -91,38 +100,67 @@ void UMeshSimulation::updateInstances()
 	FTransform rootTransform = root->GetComponentToWorld();
 
 	// count number of visible then resize ISMCs
-	std::unordered_map<UInstancedStaticMeshComponent*, int> countTable;
+	std::unordered_map<UInstancedStaticMeshComponent*, int> visibleCount;
+	TMap<UInstancedStaticMeshComponent*, int> desaturatedCount;
 
 	for (FGraphMesh& mesh : meshes)
 	{
 		// if a mesh doesn't have a static mesh, or its invisible, we will skip it in the following loops
 		// as well
-		if (!mesh.visible || mesh.staticMesh == nullptr || !mesh.isValid())
+		if (mesh.visible && mesh.staticMesh && mesh.isValid())
+		{
+			UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
+
+			// it's a new instance
+			if (!ismc || ismc->GetStaticMesh() != mesh.staticMesh || ismc->GetMaterial(0) != mesh.material)
+			{
+				ismc = getOrCreateInstancedMesh(mesh);
+
+				// assign the transient mesh
+				mesh._transientInstanceMesh = ismc;
+			}
+		}
+		else 
 			continue;
 
-		UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
-
-		// it's a new instance
-		if (!ismc || ismc->GetStaticMesh() != mesh.staticMesh || ismc->GetMaterial(0) != mesh.material)
+		if (!mesh.desaturated)
 		{
-			ismc = getOrCreateInstancedMesh(mesh);
+			UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
 
-			// assign the transient mesh
-			mesh._transientInstanceMesh = ismc;
+			int& count = visibleCount[ismc];
+
+			count++;
 		}
 
-		int& count = countTable[ismc];
+		if (mesh.desaturated)
+		{
+			UInstancedStaticMeshComponent * ismc = _desaturatedInstancedStaticMeshes[mesh];
 
-		count++;
+			if (ismc)
+			{
+				int& count = desaturatedCount.FindOrAdd(ismc);
+
+				count++;
+			}
+		}
+
+
+
 	}
 
 	// make sure all ismcs are in the count table
 	for (auto& pair : _instancedStaticeMeshes)
 	{
-		countTable[pair.second];
+		visibleCount[pair.second];
 	}
 
-	for (auto& pair : countTable)
+	for (auto& pair : _desaturatedInstancedStaticMeshes)
+	{
+		desaturatedCount.FindOrAdd(pair.second);
+	}
+
+	// resize the visible ISMCs
+	for (auto& pair : visibleCount)
 	{
 		UInstancedStaticMeshComponent * ismc = pair.first;
 
@@ -148,8 +186,34 @@ void UMeshSimulation::updateInstances()
 		_instanceToNodeHandle[ismc].resize(count);
 	}
 
+	// resize the desaturated ISMCs
+	for (auto& pair : desaturatedCount)
+	{
+		UInstancedStaticMeshComponent * ismc = pair.Key;
+
+		int32 count = pair.Value;
+
+		// size down
+		if (ismc->GetInstanceCount() > count)
+		{
+			do
+			{
+				ismc->RemoveInstance(ismc->GetInstanceCount() - 1);
+			} while (ismc->GetInstanceCount() > count);
+		}
+		// size up
+		else if (ismc->GetInstanceCount() < count)
+		{
+			do
+			{
+				ismc->AddInstance(FTransform::Identity);
+			} while (ismc->GetInstanceCount() < count);
+		}
+	}
+
 	// update positions
-	std::unordered_map<UInstancedStaticMeshComponent*, int> indexTable;
+	TMap<UInstancedStaticMeshComponent*, int> visibleIndexTable;
+	TMap<UInstancedStaticMeshComponent*, int> desaturatedIndexTable;
 
 	for(FGraphMesh& mesh : meshes)
 	{
@@ -160,18 +224,35 @@ void UMeshSimulation::updateInstances()
 
 		FTransform transform( node.orientation, node.position, FVector( node.scale ) );
 
-		UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
+		if (!mesh.desaturated)
+		{
+			UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
 
-		int& index = indexTable[ismc];
+			int& index = visibleIndexTable.FindOrAdd(ismc);
 
-		ismc->UpdateInstanceTransform( index, transform, false, false, true );
+			ismc->UpdateInstanceTransform(index, transform, false, false, true);
 
-		_instanceToNodeHandle[ismc][index] = mesh.nodeHandle();
+			_instanceToNodeHandle[ismc][index] = mesh.nodeHandle();
 
-		index++;
+			index++;
+		}
+
+		if (mesh.desaturated)
+		{
+			UInstancedStaticMeshComponent * ismc = _desaturatedInstancedStaticMeshes[mesh];
+
+			int& index = desaturatedIndexTable.FindOrAdd(ismc);
+
+			ismc->UpdateInstanceTransform(index, transform, false, false, true);
+
+			index++;
+		}
 	}
 
 	for(auto& pair : _instancedStaticeMeshes)
+		pair.second->MarkRenderStateDirty();
+
+	for (auto& pair : _desaturatedInstancedStaticMeshes)
 		pair.second->MarkRenderStateDirty();
 }
 
@@ -242,6 +323,40 @@ FBox UMeshSimulation::boundsBoxForNode(FGraphNodeHandle handle)
 	return box.TransformBy(worldTransform);
 }
 
+UInstancedStaticMeshComponent * UMeshSimulation::_createISMCs(FGraphMesh& graphMesh)
+{
+	UInstancedStaticMeshComponent * instancedMesh = NewObject<UInstancedStaticMeshComponent>(actor, NAME_None, RF_Transient);
+
+#if WITH_EDITOR
+	if (GetWorld()->WorldType == EWorldType::Editor)
+	{
+		//instancedMesh->bIsEditorOnly = true;
+		//instancedMesh->bHiddenInGame = true;
+	}
+
+#endif
+	instancedMesh->SetStaticMesh(graphMesh.staticMesh);
+
+	// we only have one material that we can set, but we need to set it for all the sections
+	if (graphMesh.staticMesh)
+	{
+		int mati = 0;
+		for (auto& mat : graphMesh.staticMesh->StaticMaterials)
+			instancedMesh->SetMaterial(mati, graphMesh.material);
+	}
+	instancedMesh->SetMobility(EComponentMobility::Movable);
+	instancedMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	instancedMesh->UseDynamicInstanceBuffer = true;
+	instancedMesh->KeepInstanceBufferCPUAccess = true;
+	instancedMesh->SetCollisionProfileName(TEXT("NoCollision"));
+	instancedMesh->AttachToComponent(actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	instancedMesh->RegisterComponent();
+
+	instancedMesh->SetRelativeScale3D(instancedMesh->GetRelativeTransform().GetScale3D());
+
+	return instancedMesh;
+}
+
 UInstancedStaticMeshComponent * UMeshSimulation::getOrCreateInstancedMesh( FGraphMesh& graphMesh )
 {
 	UInstancedStaticMeshComponent * instancedMesh = nullptr;
@@ -250,36 +365,14 @@ UInstancedStaticMeshComponent * UMeshSimulation::getOrCreateInstancedMesh( FGrap
 
 	if(found == _instancedStaticeMeshes.end())
 	{
-		instancedMesh = NewObject<UInstancedStaticMeshComponent>( actor, NAME_None, RF_Transactional);
+		instancedMesh = _createISMCs(graphMesh);
 
-#if WITH_EDITOR
-		if (GetWorld()->WorldType == EWorldType::Editor)
-		{
-			instancedMesh->bIsEditorOnly = true;
-			instancedMesh->bHiddenInGame = true;
-		}
+		UInstancedStaticMeshComponent * desaturatedMesh = _createISMCs(graphMesh);
 
-#endif
-		instancedMesh->SetStaticMesh( graphMesh.staticMesh );
-
-		// we only have one material that we can set, but we need to set it for all the sections
-		if (graphMesh.staticMesh)
-		{
-			int mati = 0;
-			for (auto& mat : graphMesh.staticMesh->StaticMaterials)
-				instancedMesh->SetMaterial(mati, graphMesh.material);
-		}
-		instancedMesh->SetMobility( EComponentMobility::Movable );
-		instancedMesh->SetCollisionEnabled( ECollisionEnabled::NoCollision );
-		instancedMesh->UseDynamicInstanceBuffer = true;
-		instancedMesh->KeepInstanceBufferCPUAccess = true;
-		instancedMesh->SetCollisionProfileName( TEXT( "NoCollision" ) );
-		instancedMesh->AttachToComponent( actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform );
-		instancedMesh->RegisterComponent();
-
-		instancedMesh->SetRelativeScale3D( instancedMesh->GetRelativeTransform().GetScale3D() );
+		desaturatedMesh->SetRenderCustomDepth(true);
 
 		_instancedStaticeMeshes[graphMesh] = instancedMesh;
+		_desaturatedInstancedStaticMeshes[graphMesh] = desaturatedMesh;
 	}
 	else
 		instancedMesh = found->second;

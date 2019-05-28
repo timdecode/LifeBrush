@@ -837,10 +837,13 @@ void UChunkedVolumeComponent::decrepify(UniformGrid<float>& grid, size_t wormSeg
 }
 
 
+
+
 // Sets default values for this component's properties
 UChunkedVolumeComponent::UChunkedVolumeComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
+	bIsActive = true;
 }
 
 
@@ -850,6 +853,30 @@ void UChunkedVolumeComponent::BeginPlay()
 	Super::BeginPlay();
 
 	init();
+}
+
+void UChunkedVolumeComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (_marching)
+		return;
+
+	_marching = true;
+
+	auto gridAccess = std::move(_gridAccess);
+	auto dirtyAcces = std::move(_dirtyAccess);
+
+	_gridAccess = nullptr;
+	_dirtyAccess = nullptr;
+	
+	Async<void>(EAsyncExecution::ThreadPool, [this, gridAccess, dirtyAcces]() mutable
+	{
+		if (gridAccess) gridAccess(_grid);
+		if (dirtyAcces) dirtyAcces(_grid);
+
+		_marching = false;
+	});
 }
 
 URuntimeMeshComponent* UChunkedVolumeComponent::runtimeMesh()
@@ -951,11 +978,6 @@ void UChunkedVolumeComponent::markTestVolumeDirty()
 	markDirtyIndex(min, max);
 }
 
-ChunkGrid<float>& UChunkedVolumeComponent::grid()
-{
-	return _grid;
-}
-
 FIntVector UChunkedVolumeComponent::componentToIndex(FVector localPoint)
 {
 	return FIntVector(localPoint * _invCellSize);
@@ -968,17 +990,9 @@ FVector UChunkedVolumeComponent::indexToComponent(FIntVector index)
 
 void UChunkedVolumeComponent::markDirtyIndex(FIntVector minGridIndex, FIntVector maxGridIndex)
 {
-	FVector cellSize = _grid.cellSize();
-
-	if (_marching)
-		return;
-
-	_marching = true;
-
-	// we use copy, so that we get a copy of the grid, so that it can still be mutated in the background
-	Async<void>(EAsyncExecution::ThreadPool, [=]() mutable
+	_dirtyAccess = [=](ChunkGrid<float>& grid)  
 	{
-		auto chunkGeometries = ChunkedMarchingCubes::marchingCubes_byChunk(isoLevel, _grid, minGridIndex, maxGridIndex, uvScale, true, flatShading);
+		auto chunkGeometries = ChunkedMarchingCubes::marchingCubes_byChunk(isoLevel, grid, minGridIndex, maxGridIndex, uvScale, true, flatShading);
 
 		AsyncTask(ENamedThreads::GameThread, [=]() mutable
 		{
@@ -987,8 +1001,6 @@ void UChunkedVolumeComponent::markDirtyIndex(FIntVector minGridIndex, FIntVector
 			for (auto& pair : chunkGeometries)
 			{
 				FIntVector chunkIndex = pair.first;
-
-				PaddedUniformGrid<float>& chunkGrid = _grid.chunkAtChunkIndex(chunkIndex);
 
 				ChunkedMarchingCubes::ChunkGeometry& chunkGeometry = pair.second;
 
@@ -1007,7 +1019,7 @@ void UChunkedVolumeComponent::markDirtyIndex(FIntVector minGridIndex, FIntVector
 					chunkInfo.sectionIndex = _chunkInfo.size() - 1;
 				}
 				// we are updating a chunk, gather the old, non-overlapping mesh information for the section
-				else if ( !isNewChunk && mesh->DoesSectionExist(chunkInfo.sectionIndex) )
+				else if (!isNewChunk && mesh->DoesSectionExist(chunkInfo.sectionIndex))
 				{
 					auto section = mesh->GetSectionReadonly(chunkInfo.sectionIndex);
 
@@ -1063,10 +1075,8 @@ void UChunkedVolumeComponent::markDirtyIndex(FIntVector minGridIndex, FIntVector
 
 				mesh->SetMeshSectionCollisionEnabled(chunkInfo.sectionIndex, false);
 			}
-
-			_marching = false;
 		});
-	});
+	};
 }
 
 void UChunkedVolumeComponent::markDirty(FVector minExtents, FVector maxExtents)

@@ -440,7 +440,7 @@ public:
 		for (int c = 0; c < 3; ++c)
 			_invCellSize[c] = 1.0f / cellSize[c];
 
-		_chunks.clear();
+		_chunks.Empty();
 	}
 
 	bool didInit()
@@ -455,7 +455,7 @@ public:
 
 		for (auto& pair : _chunks)
 		{
-			FIntVector chunk = pair.first;
+			FIntVector chunk = pair.Key;
 
 			FVector chunkStart = gridIndexFromChunkIndex(chunk);
 			FVector chunkEnd = chunkStart + _chunkSize;
@@ -476,7 +476,7 @@ public:
 
 		for (auto& pair : _chunks)
 		{
-			FIntVector index = pair.first;
+			FIntVector index = pair.Key;
 
 			for (int c = 0; c < 3; ++c)
 			{
@@ -493,7 +493,7 @@ public:
 
 		for (auto& pair : _chunks)
 		{
-			FIntVector index = pair.first;
+			FIntVector index = pair.Key;
 
 			for (int c = 0; c < 3; ++c)
 			{
@@ -520,11 +520,9 @@ public:
 	// will also overwrite an existing chunk
 	PaddedUniformGrid<float>& _createChunkAt(FIntVector chunkIndex)
 	{
-		_chunks[chunkIndex] = std::make_unique<PaddedUniformGrid<float>>();
+		_chunks.Add(chunkIndex, std::make_unique<PaddedUniformGrid<float>>());
 
-		auto& chunkPtr = _chunks[chunkIndex];
-
-		PaddedUniformGrid<float>& chunk = *chunkPtr.get();
+		PaddedUniformGrid<float>& chunk = *_chunks[chunkIndex].get();
 
 		FVector base;
 		for (int c = 0; c < 3; ++c)
@@ -569,8 +567,7 @@ public:
 				FIntVector neighbourChunkIndex = chunkIndex + chunkOffset;
 
 				// if we don't have a neighbour, there is nothing to copy!
-				if (_chunks.find(neighbourChunkIndex) == _chunks.end())
-					continue;
+				if(!_chunks.Contains(neighbourChunkIndex)) continue;
 
 				FIntVector neighbourGridBase = gridIndexFromChunkIndex(neighbourChunkIndex);
 
@@ -598,10 +595,10 @@ public:
 	PaddedUniformGrid<ElementType>& chunkAtChunkIndex(FIntVector chunkIndex)
 	{
 		// do we need a new chunk?
-		auto found = _chunks.find(chunkIndex);
+		auto found = _chunks.Find(chunkIndex);
 
 		// not found
-		if (found == _chunks.end())
+		if (!found)
 		{
 			// we need a new chunk
 			return _createChunkAt(chunkIndex);
@@ -609,7 +606,7 @@ public:
 		// found
 		else
 		{
-			return *_chunks[chunkIndex].get();
+			return *found->get();
 		}
 	}
 
@@ -649,10 +646,10 @@ public:
 		FIntVector chunkIndex = indexOfChunk(gridIndex);
 
 		// do we need a new chunk?
-		auto found = _chunks.find(chunkIndex);
+		auto found = _chunks.Find(chunkIndex);
 
 		// not found
-		if (found == _chunks.end())
+		if (!found )
 		{
 			// fake it
 			return 0.0f;
@@ -660,7 +657,7 @@ public:
 		// found
 		else
 		{
-			PaddedUniformGrid<ElementType>& grid = *found->second.get();
+			PaddedUniformGrid<ElementType>& grid = *found->get();
 
 			FIntVector ci = indexOfCell(gridIndex);
 
@@ -857,5 +854,5 @@ protected:
   }
   return seed;
 }*/
-	std::unordered_map < FIntVector, std::unique_ptr<PaddedUniformGrid<float>> > _chunks;
+	TMap< FIntVector, std::unique_ptr<PaddedUniformGrid<float>> > _chunks;
 };

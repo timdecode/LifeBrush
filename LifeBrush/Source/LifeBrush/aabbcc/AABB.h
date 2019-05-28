@@ -286,6 +286,8 @@ namespace aabb
          */
         void removeParticle(unsigned int index);
 
+		bool containsParticle(unsigned int index);
+
         /// Remove all particles from the tree.
         void removeAll();
 
@@ -577,9 +579,6 @@ namespace aabb
         bool minimumImage(Position_t&, Position_t&);
     };
 
-
-
-
 	template<unsigned int DIM, typename SCALAR>
 	AABB<DIM, SCALAR>::AABB()
 	{
@@ -713,6 +712,7 @@ namespace aabb
 
 		return rv;
 	}
+
 
 	template<unsigned int DIM, typename SCALAR>
 	typename AABB<DIM, SCALAR>::Position_t AABB<DIM, SCALAR>::computeCentre()
@@ -974,6 +974,12 @@ namespace aabb
 	}
 
 	template<unsigned int DIM, typename SCALAR>
+	bool Tree<DIM, SCALAR>::containsParticle(unsigned int index)
+	{
+		return particleMap.find(index) != particleMap.end();
+	}
+
+	template<unsigned int DIM, typename SCALAR>
 	void Tree<DIM, SCALAR>::removeParticle(unsigned int particle)
 	{
 		// Map iterator.
@@ -983,10 +989,7 @@ namespace aabb
 		it = particleMap.find(particle);
 
 		// The particle doesn't exist.
-		if (it == particleMap.end())
-		{
-			throw std::invalid_argument("[ERROR]: Invalid particle index!");
-		}
+		assert(it != particleMap.end());
 
 		// Extract the node index.
 		unsigned int node = it->second;

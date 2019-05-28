@@ -89,6 +89,9 @@ class LIFEBRUSH_API UChunkedVolumeComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	typedef std::function< void(ChunkGrid<float>&) > TChunkAccess;
+
+public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipEditor")
 	UMaterialInterface * material;
 
@@ -119,12 +122,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "ShipEditor")
 	FVector wormNoiseScale = FVector(1.0f, 1.0f, 1.0f);
 
+
+
 public:
 	// Sets default values for this component's properties
 	UChunkedVolumeComponent();
 
 	// Called when the game starts
 	virtual void BeginPlay() override;
+
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 
 	void init();
 
@@ -134,7 +141,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void markTestVolumeDirty();
 
-	ChunkGrid<float>& grid();
+	void writeAccessGrid(TChunkAccess chunkAccess)
+	{
+		_gridAccess = chunkAccess;
+	}
+
+	ChunkGrid<float>& grid() { return _grid; }
+
 
 	FIntVector componentToIndex(FVector localPoint);
 	FVector indexToComponent(FIntVector index);
@@ -143,6 +156,9 @@ public:
 	void markDirtyIndex(FIntVector minGridIndex, FIntVector maxGridIndex);
 
 protected:
+	TChunkAccess _gridAccess;
+	TChunkAccess _dirtyAccess;
+
 	ChunkGrid<float> _grid;
 
 	FVector _cellSize;

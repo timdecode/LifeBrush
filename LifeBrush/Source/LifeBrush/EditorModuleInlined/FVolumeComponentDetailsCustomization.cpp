@@ -62,12 +62,13 @@ void FChunkedVolumeComponentDetailsCustomization::CustomizeDetails(IDetailLayout
 
 			volumeComponent->initializeTestVolume();
 
-			auto& grid = volumeComponent->grid();
+			volumeComponent->writeAccessGrid([&](ChunkGrid<float>& grid) 
+			{
+				FIntVector min = grid.gridIndexFromChunkIndex(grid.minChunkndex());
+				FIntVector max = grid.gridIndexFromChunkIndex(grid.maxChunkIndex()) + grid.chunkDimensions();
 
-			FIntVector min = grid.gridIndexFromChunkIndex(grid.minChunkndex());
-			FIntVector max = grid.gridIndexFromChunkIndex(grid.maxChunkIndex()) + grid.chunkDimensions();
-
-			volumeComponent->markDirtyIndex(min, max);
+				volumeComponent->markDirtyIndex(min, max);
+			});
 
 			return FReply::Handled();
 		} )

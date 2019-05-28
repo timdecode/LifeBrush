@@ -21,6 +21,13 @@ public:
 	class UDigTool * digTool = nullptr;
 };
 
+UENUM(BlueprintType)
+enum class EDigShape : uint8
+{
+	Sphere UMETA(DisplayName = "Sphere"),
+	Capsule UMETA(DisplayName = "Capsule"),
+};
+
 UENUM( BlueprintType )
 enum class EDigMode : uint8
 {
@@ -64,6 +71,7 @@ public:
 	virtual void oneHandEnd( UPrimitiveComponent * hand ) override;
 
 	virtual void tickOneHand( float dt, UPrimitiveComponent * hand, FTransform lastTransform ) override;
+	virtual void tickTwoHand(float dt, UPrimitiveComponent * handA, UPrimitiveComponent * handB, FTransform lastTransformA, FTransform lastTransformB) override;
 
 	virtual void gainFocus() override;
 	virtual void loseFocus() override;
@@ -78,6 +86,8 @@ public:
 
 
 	virtual bool consume_rightShoulder_pressed() override;
+
+
 
 public:
 	UFUNCTION(BlueprintCallable, Category = Generation)
@@ -98,6 +108,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	float maxValue = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	EDigShape digShape = EDigShape::Sphere;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	float capsuleLength = 10.0f;
 
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	UStaticMesh * selectionMesh;
@@ -133,7 +149,8 @@ public:
 
 protected:
 	void _dig( class UChunkedVolumeComponent * volume, FVector volumePosition, float radius, float dt);
-	void _smooth(UChunkedVolumeComponent * volume, FVector volumePosition, float volumeRadius );
+	void _capsuleDig(UChunkedVolumeComponent * volume, FVector volumeStart, FVector volumeEnd, float volumeRadius, float dt);
+	void _smooth(UChunkedVolumeComponent * volume, FVector volumePosition, float volumeRadius);
 
 	void _createSelectionMeshComponent( UPrimitiveComponent * selectionPoint );
 

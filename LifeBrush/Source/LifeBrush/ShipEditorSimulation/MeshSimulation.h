@@ -40,6 +40,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipEditor")
 	bool visible = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ShipEditor")
+	bool desaturated = false;
+
 	operator FGraphMeshKey() { return FGraphMeshKey{ staticMesh, material }; }
 
 	UInstancedStaticMeshComponent * _transientInstanceMesh = nullptr;
@@ -109,10 +112,15 @@ public:
 
 
 protected:
+	// Get or creates a ISMC given the passed graph mesh
 	UInstancedStaticMeshComponent * getOrCreateInstancedMesh( FGraphMesh& graphMesh );
+	// Helper to create the mesh
+	UInstancedStaticMeshComponent * _createISMCs(FGraphMesh& graphMesh);
 
 	void _clearTransients();
 
 	std::unordered_map<FGraphMeshKey, UInstancedStaticMeshComponent*> _instancedStaticeMeshes;
 	std::unordered_map<UInstancedStaticMeshComponent*, std::vector<FGraphNodeHandle>> _instanceToNodeHandle;
+
+	std::unordered_map<FGraphMeshKey, UInstancedStaticMeshComponent*> _desaturatedInstancedStaticMeshes;
 };
