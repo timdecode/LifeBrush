@@ -1,4 +1,4 @@
-// Copyright 2016, Timothy Davison. All rights reserved.
+// Copyright 2019, Timothy Davison. All rights reserved.
 
 #pragma once
 
