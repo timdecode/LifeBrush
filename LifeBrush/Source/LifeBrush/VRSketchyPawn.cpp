@@ -157,44 +157,6 @@ void AVRSketchyPawn::SetupPlayerInputComponent(class UInputComponent* InputCompo
 {
 	Super::SetupPlayerInputComponent(InputComponent);
 
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton1, IE_Released, this, &AVRSketchyPawn::leftController_upFace_released );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton3, IE_Released, this, &AVRSketchyPawn::leftController_downFace_released );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton4, IE_Released, this, &AVRSketchyPawn::leftController_leftFace_released );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton2, IE_Released, this, &AVRSketchyPawn::leftController_rightFace_released );
-
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton1, IE_Released, this, &AVRSketchyPawn::rightController_faceUp_released );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton3, IE_Released, this, &AVRSketchyPawn::rightController_faceDown_released );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton4, IE_Released, this, &AVRSketchyPawn::rightController_faceLeft_released );
-	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton2, IE_Released, this, &AVRSketchyPawn::rightController_faceRight_released );
-
-	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton1, IE_Pressed, this, &AVRSketchyPawn::rightController_faceUp_pressed);
-	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton3, IE_Pressed, this, &AVRSketchyPawn::rightController_faceDown_pressed);
-	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton4, IE_Pressed, this, &AVRSketchyPawn::rightController_faceLeft_pressed);
-	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton2, IE_Pressed, this, &AVRSketchyPawn::rightController_faceRight_pressed);
-
-	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Pressed, this, &AVRSketchyPawn::leftController_touchStart );
-	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Released, this, &AVRSketchyPawn::leftController_touchEnd );
-
-	InputComponent->BindKey( EKeys::Steam_Touch_1, IE_Pressed, this, &AVRSketchyPawn::rightController_touchStart );
-	InputComponent->BindKey( EKeys::Steam_Touch_1, IE_Released, this, &AVRSketchyPawn::rightController_touchEnd );
-
-	InputComponent->BindAxisKey( EKeys::MotionController_Left_Thumbstick_X );
-	InputComponent->BindAxisKey( EKeys::MotionController_Left_Thumbstick_Y );
-
-	InputComponent->BindAxisKey( EKeys::MotionController_Right_Thumbstick_X );
-	InputComponent->BindAxisKey( EKeys::MotionController_Right_Thumbstick_Y );
-
-	InputComponent->BindAxisKey( EKeys::MotionController_Left_TriggerAxis, this, &AVRSketchyPawn::leftTrigger );
-	InputComponent->BindAxisKey( EKeys::MotionController_Right_TriggerAxis, this, &AVRSketchyPawn::rightTrigger );
-
-	InputComponent->BindKey( EKeys::MotionController_Left_Grip1, IE_Pressed, this, &AVRSketchyPawn::spiderManLeftStart );
-	InputComponent->BindKey( EKeys::MotionController_Left_Grip1, IE_Released, this, &AVRSketchyPawn::spiderManLeftEnd );
-
-	InputComponent->BindKey( EKeys::MotionController_Right_Grip1, IE_Pressed, this, &AVRSketchyPawn::spiderManRightStart );
-	InputComponent->BindKey( EKeys::MotionController_Right_Grip1, IE_Released, this, &AVRSketchyPawn::spiderManRightEnd );
-
-	InputComponent->BindKey( EKeys::MotionController_Left_Shoulder, IE_Released, this, &AVRSketchyPawn::takeGraphicalSnapshotAndHighResShot );
-	InputComponent->BindKey( EKeys::MotionController_Right_Shoulder, IE_Released, this, &AVRSketchyPawn::rightController_shoulder_released );
 }
 
 
