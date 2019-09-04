@@ -241,7 +241,60 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightUpdate();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void takeGraphicalSnapshotAndHighResShot();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void takeHighReshShot();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void snapshotElementDomain();
+
+	void leftController_touchStart();
+	void leftController_touchUpdated();
+	void leftController_touchEnd();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void leftController_upFace_released();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void leftController_downFace_released();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void leftController_leftFace_released();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void leftController_rightFace_released();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_touchStart();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_touchUpdated();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_touchEnd();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceUp_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceUp_released();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceDown_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceDown_released();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceLeft_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceLeft_released();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceRight_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_faceRight_released();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void rightController_shoulder_released();
+
 protected:
+	FVector2D _getLeftTouchPoint();
+	FVector2D _getRightTouchPoint();
+
 	void _initSimulation_oneTime();
 	void _initSimulationBounds();
 	void _initTools();
@@ -249,38 +302,6 @@ protected:
 	FString _actorLabelByDate(FString baseName);
 
 
-	void takeGraphicalSnapshotAndHighResShot();
-	void takeHighReshShot();
-	void snapshotElementDomain();
-
-	void leftController_touchStart();
-	void leftController_touchUpdated();
-	void leftController_touchEnd();
-	FVector2D _getLeftTouchPoint();
-
-	void leftController_upFace_released();
-	void leftController_downFace_released();
-	void leftController_leftFace_released();
-	void leftController_rightFace_released();
-
-	void rightController_touchStart();
-	void rightController_touchUpdated();
-	void rightController_touchEnd();
-	FVector2D _getRightTouchPoint();
-
-	void rightController_faceUp_pressed();
-	void rightController_faceUp_released();
-
-	void rightController_faceDown_pressed();
-	void rightController_faceDown_released();
-
-	void rightController_faceLeft_pressed();
-	void rightController_faceLeft_released();
-
-	void rightController_faceRight_pressed();
-	void rightController_faceRight_released();
-
-	void rightController_shoulder_released();
 
 	void _startSimulation();
 	void _endSimulation();
