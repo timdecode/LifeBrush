@@ -1,0 +1,78 @@
+/MANIFEST:NO
+/NOLOGO
+/DEBUG
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/FIXED:No
+/NXCOMPAT
+/STACK:5000000
+/DELAY:UNLOAD
+/DLL
+/PDBALTPATH:%_PDB%
+/OPT:NOREF
+/OPT:NOICF
+/INCREMENTAL:NO
+/ignore:4199
+/ignore:4099
+/DELAYLOAD:"d3d12.dll"
+/LIBPATH:"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Source\ThirdParty\OpenVRSDK\lib\win64"
+/NODEFAULTLIB:"LIBCMT"
+/NODEFAULTLIB:"LIBCPMT"
+/NODEFAULTLIB:"LIBCMTD"
+/NODEFAULTLIB:"LIBCPMTD"
+/NODEFAULTLIB:"MSVCRTD"
+/NODEFAULTLIB:"MSVCPRTD"
+/NODEFAULTLIB:"LIBC"
+/NODEFAULTLIB:"LIBCP"
+/NODEFAULTLIB:"LIBCD"
+/NODEFAULTLIB:"LIBCPD"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\PCH.SteamVREditor.h.obj"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\Module.SteamVREditor.cpp.obj"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\Module.SteamVREditor.gen.cpp.obj"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\PCLaunch.rc.res"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\ModuleVersionResource.rc.inl.res"
+"delayimp.lib"
+"wininet.lib"
+"rpcrt4.lib"
+"ws2_32.lib"
+"dbghelp.lib"
+"comctl32.lib"
+"Winmm.lib"
+"kernel32.lib"
+"user32.lib"
+"gdi32.lib"
+"winspool.lib"
+"comdlg32.lib"
+"advapi32.lib"
+"shell32.lib"
+"ole32.lib"
+"oleaut32.lib"
+"uuid.lib"
+"odbc32.lib"
+"odbccp32.lib"
+"netapi32.lib"
+"iphlpapi.lib"
+"setupapi.lib"
+"dwmapi.lib"
+"imm32.lib"
+"openvr_api.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-Projects.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-InputCore.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-UnrealEd.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-LevelEditor.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-CoreUObject.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-Engine.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-Slate.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-SlateCore.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-Core.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-InputDevice.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-ApplicationCore.lib"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-SteamVRInput-4201.lib"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-SteamVRInputDevice-4201.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-BlueprintGraph.lib"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-AnimGraph.lib"
+/OUT:"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Binaries\Win64\UE4Editor-SteamVREditor-4201.dll"
+/IMPLIB:"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-SteamVREditor-4201.suppressed.lib"
+/PDB:"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Binaries\Win64\UE4Editor-SteamVREditor-4201.pdb"
+/ignore:4078

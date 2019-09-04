@@ -1,0 +1,14 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UE4Editor-SteamVREditor-4201.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\PCH.SteamVREditor.h.obj"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\Module.SteamVREditor.cpp.obj"
+"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\Module.SteamVREditor.gen.cpp.obj"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\SteamVREditor\PCLaunch.rc.res"
+"C:\Program Files\Epic Games\UE_4.18\Engine\Intermediate\Build\Win64\UE4Editor\Development\ModuleVersionResource.rc.inl.res"
+/OUT:"C:\Users\timothyd\Documents\GitHub\LifeBrush\LifeBrush\Plugins\SteamVRInput\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-SteamVREditor-4201.lib"
