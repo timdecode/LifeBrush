@@ -1,0 +1,49 @@
+{
+  "FileVersion": 3,
+  "EngineVersion": "4.18.0",
+  "Version": 1,
+  "VersionName": "1.5-sdk1.5.17",
+  "FriendlyName": "SteamVR Input for Unreal",
+  "Description": "Integrates Valve's SteamVR Input features in an intuitive and easy to use way for Unreal developers.",
+  "Category": "Virtual Reality",
+  "CreatedBy": "Valve Corporation",
+  "CreatedByURL": "https://www.valvesoftware.com",
+  "DocsURL": "https://github.com/ValveSoftware/steamvr_unreal_plugin/wiki",
+  "MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/401605a650e64a8fa3c0f45838a6357d",
+  "SupportURL": "https://github.com/ValveSoftware/steamvr_unreal_plugin/issues",
+  "CanContainContent": true,
+  "IsBetaVersion": true,
+  "Installed": true,
+  "Modules": [
+    {
+      "Name": "SteamVRInput",
+      "Type": "Runtime",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
+    },
+    {
+      "Name": "SteamVRInputDevice",
+      "Type": "Runtime",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
+    },
+    {
+      "Name": "SteamVREditor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit",
+      "WhitelistPlatforms": [
+        "Win64"
+      ]
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "SteamVR",
+      "Enabled": true
+    }
+  ]
+}

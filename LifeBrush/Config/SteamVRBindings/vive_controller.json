@@ -1,0 +1,252 @@
+{
+	"name": "Default bindings for Vive Controllers",
+	"controller_type": "vive_controller",
+	"bindings":
+	{
+		"/actions/main":
+		{
+			"sources": [
+				{
+					"mode": "dpad",
+					"path": "/user/hand/left/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"south":
+						{
+							"output": "/actions/main/in/ActionDown_L"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/right/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"south":
+						{
+							"output": "/actions/main/in/ActionDown_R"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/left/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"west":
+						{
+							"output": "/actions/main/in/ActionLeft_L"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/right/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"west":
+						{
+							"output": "/actions/main/in/ActionLeft_R"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/left/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"east":
+						{
+							"output": "/actions/main/in/ActionRight_L"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/right/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"east":
+						{
+							"output": "/actions/main/in/ActionRight_R"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/left/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"north":
+						{
+							"output": "/actions/main/in/ActionUp_L"
+						}
+					}
+				},
+				{
+					"mode": "dpad",
+					"path": "/user/hand/right/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
+					"inputs":
+					{
+						"north":
+						{
+							"output": "/actions/main/in/ActionUp_R"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/left/input/grip",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/SpiderMan_L"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/right/input/grip",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/SpiderMan_R"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/left/input/trackpad",
+					"inputs":
+					{
+						"touch":
+						{
+							"output": "/actions/main/in/Touch_L"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/right/input/trackpad",
+					"inputs":
+					{
+						"touch":
+						{
+							"output": "/actions/main/in/Touch_R"
+						}
+					}
+				},
+				{
+					"mode": "trigger",
+					"path": "/user/hand/right/input/trigger",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/TriggerClick_R"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/right/input/trigger",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/TriggerPress_R"
+						}
+					}
+				},
+				{
+					"mode": "trigger",
+					"path": "/user/hand/left/input/trigger",
+					"inputs":
+					{
+						"pull":
+						{
+							"output": "/actions/main/in/BrushSize_L axis"
+						}
+					}
+				},
+				{
+					"mode": "trigger",
+					"path": "/user/hand/right/input/trigger",
+					"inputs":
+					{
+						"pull":
+						{
+							"output": "/actions/main/in/BrushSize_R axis"
+						}
+					}
+				}
+			],
+			"poses": [
+				{
+					"output": "/actions/main/in/controllerleft",
+					"path": "/user/hand/left/pose/raw",
+					"requirement": "optional"
+				},
+				{
+					"output": "/actions/main/in/controllerright",
+					"path": "/user/hand/right/pose/raw"
+				}
+			],
+			"skeleton": [
+				{
+					"output": "/actions/main/in/skeletonleft",
+					"path": "/user/hand/left/input/skeleton/left"
+				},
+				{
+					"output": "/actions/main/in/skeletonright",
+					"path": "/user/hand/right/input/skeleton/right"
+				}
+			],
+			"haptics": [
+				{
+					"output": "/actions/main/out/vibrateleft",
+					"path": "/user/hand/left/output/haptic"
+				},
+				{
+					"output": "/actions/main/out/vibrateright",
+					"path": "/user/hand/right/output/haptic"
+				}
+			]
+		}
+	},
+	"description": "LifeBrush"
+}
