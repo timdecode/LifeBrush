@@ -157,10 +157,10 @@ void AVRSketchyPawn::SetupPlayerInputComponent(class UInputComponent* InputCompo
 {
 	Super::SetupPlayerInputComponent(InputComponent);
 
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton1, IE_Released, this, &AVRSketchyPawn::leftController_upFace );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton3, IE_Released, this, &AVRSketchyPawn::leftController_downFace );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton4, IE_Released, this, &AVRSketchyPawn::leftController_leftFace );
-	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton2, IE_Released, this, &AVRSketchyPawn::leftController_rightFace );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton1, IE_Released, this, &AVRSketchyPawn::leftController_upFace_released );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton3, IE_Released, this, &AVRSketchyPawn::leftController_downFace_released );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton4, IE_Released, this, &AVRSketchyPawn::leftController_leftFace_released );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton2, IE_Released, this, &AVRSketchyPawn::leftController_rightFace_released );
 
 	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton1, IE_Released, this, &AVRSketchyPawn::rightController_faceUp_released );
 	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton3, IE_Released, this, &AVRSketchyPawn::rightController_faceDown_released );
@@ -459,7 +459,7 @@ void AVRSketchyPawn::leftController_touchEnd()
 
 // ------------------------------------------------------------
 
-void AVRSketchyPawn::leftController_upFace()
+void AVRSketchyPawn::leftController_upFace_released()
 {
 	if (!developerMode)
 		return;
@@ -467,7 +467,7 @@ void AVRSketchyPawn::leftController_upFace()
 	restoreSimulation();
 }
 
-void AVRSketchyPawn::leftController_downFace()
+void AVRSketchyPawn::leftController_downFace_released()
 {
 	if (!developerMode)
 		return;
@@ -475,12 +475,12 @@ void AVRSketchyPawn::leftController_downFace()
 	snapshotSimulation();
 }
 
-void AVRSketchyPawn::leftController_leftFace()
+void AVRSketchyPawn::leftController_leftFace_released()
 {
 
 }
 
-void AVRSketchyPawn::leftController_rightFace()
+void AVRSketchyPawn::leftController_rightFace_released()
 {	
 
 }

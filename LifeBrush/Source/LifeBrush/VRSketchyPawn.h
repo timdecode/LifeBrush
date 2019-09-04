@@ -248,10 +248,10 @@ protected:
 	void leftController_touchEnd();
 	FVector2D _getLeftTouchPoint();
 
-	void leftController_upFace();
-	void leftController_downFace();
-	void leftController_leftFace();
-	void leftController_rightFace();
+	void leftController_upFace_released();
+	void leftController_downFace_released();
+	void leftController_leftFace_released();
+	void leftController_rightFace_released();
 
 	void rightController_touchStart();
 	void rightController_touchUpdated();
