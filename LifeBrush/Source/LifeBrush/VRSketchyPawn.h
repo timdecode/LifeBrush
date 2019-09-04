@@ -223,12 +223,22 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftStart();
+	
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftEnd();
+	
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftUpdate();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightStart();
+	
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightEnd();
+	
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightUpdate();
 
 protected:
