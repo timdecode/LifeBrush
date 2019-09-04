@@ -110,6 +110,10 @@
 			"type": "boolean"
 		},
 		{
+			"name": "/actions/main/in/ShowMenu",
+			"type": "boolean"
+		},
+		{
 			"name": "/actions/main/in/SpiderMan_L",
 			"type": "boolean"
 		},
@@ -228,6 +232,7 @@
 			"/actions/main/in/ActionRight_R": "ActionRight_R",
 			"/actions/main/in/ActionUp_L": "ActionUp_L",
 			"/actions/main/in/ActionUp_R": "ActionUp_R",
+			"/actions/main/in/ShowMenu": "ShowMenu",
 			"/actions/main/in/SpiderMan_L": "SpiderMan_L",
 			"/actions/main/in/SpiderMan_R": "SpiderMan_R",
 			"/actions/main/in/Touch_L": "Touch_L",
