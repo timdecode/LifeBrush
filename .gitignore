@@ -75,3 +75,6 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+LifeBrush/Plugins/SteamVRInput/Binaries/*
+LifeBrush/Plugins/SteamVRInput/Intermediate/*
+
