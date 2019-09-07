@@ -259,7 +259,10 @@ void USelectionTool::gainFocus()
 		ISelectionToolDelegate::Execute_didChangeSelectionMode( widget, selectionMode, selectionMode );
 	}
 
-	clearSelection();
+	if (!useGroupSelection)
+	{
+		clearSelection();
+	}
 }
 
 std::vector<AElementActor*> USelectionTool::_toVector( TSet<AElementActor*> aSet )
