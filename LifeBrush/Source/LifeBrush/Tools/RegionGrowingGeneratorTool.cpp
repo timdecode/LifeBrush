@@ -165,6 +165,24 @@ void URegionGrowingGeneratorTool::init(FRGC_UToolInitProperties& initProperties)
 	_generator = generator;
 }
 
+void URegionGrowingGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
+{
+	Super::oneHandStart(hand);
+
+
+	// choose the draw-mode
+	if (automaticDrawMode == EAutomaticDrawMode::ByElementHint)
+	{
+		auto gen = generator();
+
+		if (gen->spaceModeHint == ESpaceMode::Surface)
+			setDrawMode(EGenerativeDrawMode::Surface);
+		else if (gen->spaceModeHint == ESpaceMode::Volume)
+			setDrawMode(EGenerativeDrawMode::Volumetric);
+	}
+
+}
+
 void URegionGrowingGeneratorTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
 	generator()->brushSize = _brushRadius();
@@ -182,6 +200,7 @@ void URegionGrowingGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComp
 	{
 		generator()->setGenerationMode(EGenerationMode::SurfacePainting);
 	}
+
 
 	Super::_tickOneHand_generate(dt, hand, lastTransform);
 }

@@ -67,6 +67,8 @@ public:
 
 	URegionGrowingGenerator * generator() { return Cast<URegionGrowingGenerator>(_generator); }
 
+	virtual void oneHandStart(UPrimitiveComponent * hand) override;
+
 	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform) override;
 
 protected:
