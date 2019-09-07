@@ -289,6 +289,8 @@ void URegionGrowingGenerator::setSelection(std::vector<AElementActor*> elementAc
 
 		if (handle)
 			selection.push_back(handle);
+
+		spaceModeHint = actor->spaceModeHint;
 	}
 
 	// resync

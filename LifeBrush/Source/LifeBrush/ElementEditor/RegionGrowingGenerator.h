@@ -82,6 +82,8 @@ protected:
 	FString _optimizationParametersString(FNeighbourhoodParameters& params);
 
 public:
+	ESpaceMode spaceModeHint = ESpaceMode::Volume;
+
 	UPROPERTY(EditAnywhere) bool perElementParameters = false;
 
 	UPROPERTY(EditAnywhere) bool pauseSynthesis = false;
