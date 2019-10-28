@@ -87,12 +87,13 @@ All of my code is released under an MIT license. There are included source-codes
 
 **Please cite with:**
 ```
-@inproceedings{davison2018lifebrush,
-  title={LifeBrush: Painting interactive agent-based simulations},
+@article{davison2019lifebrush,
+  title={LifeBrush: Painting, simulating, and visualizing dense biomolecular environments},
   author={Davison, Timothy and Samavati, Faramarz and Jacob, Christian},
-  booktitle={2018 International Conference on Cyberworlds (CW)},
-  pages={17--24},
-  year={2018},
-  organization={IEEE}
+  journal={Computers \& Graphics},
+  volume={82},
+  pages={232--242},
+  year={2019},
+  publisher={Elsevier}
 }
 ```
