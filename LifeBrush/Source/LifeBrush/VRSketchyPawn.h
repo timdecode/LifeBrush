@@ -227,12 +227,18 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftStart();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftEnd();
+	// we manage this in Tick
 	void spiderManLeftUpdate();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightStart();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightEnd();
+	// we manage this in Tick
 	void spiderManRightUpdate();
 
 protected:
@@ -251,8 +257,11 @@ protected:
 	void leftController_touchEnd();
 	FVector2D _getLeftTouchPoint();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void leftController_upFace();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void leftController_downFace();
+	
 	void leftController_leftFace();
 	void leftController_rightFace();
 
@@ -261,10 +270,14 @@ protected:
 	void rightController_touchEnd();
 	FVector2D _getRightTouchPoint();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void rightController_faceUp_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void rightController_faceUp_released();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void rightController_faceDown_pressed();
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void rightController_faceDown_released();
 
 	void rightController_faceLeft_pressed();
@@ -273,6 +286,7 @@ protected:
 	void rightController_faceRight_pressed();
 	void rightController_faceRight_released();
 
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void rightController_shoulder_released();
 
 	void _startSimulation();
