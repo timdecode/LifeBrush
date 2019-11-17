@@ -42,7 +42,7 @@ void UGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
 	if (!_generator || !elementEditor)
 		return;
 
-	auto meshInterface = elementEditor->context->meshInterface.get();
+	auto meshInterface = elementEditor->context()->meshInterface.get();
 
 	FVector location = hand->GetComponentLocation();
 
@@ -68,7 +68,7 @@ void UGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
 	{
 		FVector location = hand->GetComponentLocation();
 
-		auto meshInterface = elementEditor->context->meshInterface.get();
+		auto meshInterface = elementEditor->context()->meshInterface.get();
 
 		auto nearest = meshInterface->nearestPointOnMesh(location);
 
@@ -109,7 +109,7 @@ void UGeneratorTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransfor
 
 void UGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
-	auto meshInterface = elementEditor->context->meshInterface.get();
+	auto meshInterface = elementEditor->context()->meshInterface.get();
 
 	FVector location = hand->GetComponentLocation();
 
@@ -129,7 +129,7 @@ void UGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComponent * hand,
 
 void UGeneratorTool::_tickOneHand_erase(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
-	auto meshInterface = elementEditor->context->meshInterface.get();
+	auto meshInterface = elementEditor->context()->meshInterface.get();
 
 	FVector location = hand->GetComponentLocation();
 
@@ -160,27 +160,9 @@ void URegionGrowingGeneratorTool::init(FRGC_UToolInitProperties& initProperties)
 	if (!generator)
 		generator = NewObject<URegionGrowingGenerator>(this, TEXT("generator"));
 
-	generator->exemplar = exemplarActor;
+	generator->exemplarActor = exemplarActor;
 
 	_generator = generator;
-}
-
-void URegionGrowingGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
-{
-	Super::oneHandStart(hand);
-
-
-	// choose the draw-mode
-	if (automaticDrawMode == EAutomaticDrawMode::ByElementHint)
-	{
-		auto gen = generator();
-
-		if (gen->spaceModeHint == ESpaceMode::Surface)
-			setDrawMode(EGenerativeDrawMode::Surface);
-		else if (gen->spaceModeHint == ESpaceMode::Volume)
-			setDrawMode(EGenerativeDrawMode::Volumetric);
-	}
-
 }
 
 void URegionGrowingGeneratorTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
@@ -200,7 +182,6 @@ void URegionGrowingGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComp
 	{
 		generator()->setGenerationMode(EGenerationMode::SurfacePainting);
 	}
-
 
 	Super::_tickOneHand_generate(dt, hand, lastTransform);
 }

@@ -63,9 +63,6 @@ public:
 public:
 
 	UPROPERTY()
-	URegionGrowingComponent * regionGrowingComponent = nullptr;
-
-	UPROPERTY()
 	UDiscreteElementEditorComponent * discreteEditorComponent = nullptr;
 
 	UPROPERTY()
@@ -121,8 +118,6 @@ public:
 	void init(FRGC_UToolInitProperties& initProperties)
 	{
 		UTool::init(initProperties);
-
-		regionGrowingComponent = initProperties.regionGrowingComponent;
 
 		makeSelectionAActive();
 	}

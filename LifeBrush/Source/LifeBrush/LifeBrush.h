@@ -13,7 +13,7 @@
 #include "Editor/PropertyEditor/Public/PropertyEditing.h"
 #endif
 
-class FRegionGrowing : public IModuleInterface
+class FLifeBrush : public IModuleInterface
 {
 public:
     virtual bool IsGameModule() const override

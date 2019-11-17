@@ -76,13 +76,14 @@ class LIFEBRUSH_API UMeshSimulation : public UObjectSimulation
 {
 	GENERATED_BODY()
 
-public:
+protected:
 	// ---------------------------------------------
 	// UMeshSimulation
 	// ---------------------------------------------
 	virtual void attach() override;
 	virtual void detach() override;
 
+public:
 	virtual void begin() override;
 
 	virtual void tick(float deltaT) override;

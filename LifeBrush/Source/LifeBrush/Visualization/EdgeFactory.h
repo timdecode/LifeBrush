@@ -150,7 +150,7 @@ public:
 
 
 	template<typename Func>
-	void processWithFunction(Func func)
+	void processWithFunctionOld(Func func)
 	{
 		using SegmentType = LineElement::SegmentType;
 
@@ -187,24 +187,21 @@ public:
 			FQuat lastQuat = FQuat::Identity;
 			FVector lastPosition = FVector::ZeroVector;
 
-			for (int32 i = 1; i < lineSegments.Num() - 1; ++i)
+			for (int32 i = 1; i < lineSegments.Num(); ++i)
 			{
 				auto& element_last = lineSegments[i - 1];
 				auto& element_cur = lineSegments[i + 0];
-				auto& element_next = lineSegments[i + 1];
 
-
-
-				const FVector dirLast = (element_cur.point - element_last.point).GetSafeNormal();
-				const FVector dirNext = (element_next.point - element_cur.point).GetSafeNormal();
-
-				const FVector dirCur = (dirNext + dirLast).GetSafeNormal();
+				const FVector dirCur = (element_cur.point - element_last.point).GetSafeNormal();
 
 				if (element_cur.type == SegmentType::Begin)
 				{
-					lastQuat = FQuat::FindBetweenNormals(FVector::RightVector, dirNext);
-
 					continue;
+				}
+
+				if (element_last.type == SegmentType::Begin)
+				{
+					lastQuat = FQuat::FindBetween(FVector::RightVector, dirCur);
 				}
 
 				// Find rotation_a
@@ -219,7 +216,7 @@ public:
 				}
 				else if (element_cur.type == SegmentType::End)
 				{
-					quatB = FQuat::FindBetweenNormals(FVector::RightVector, dirLast);
+					quatB = FQuat::FindBetweenNormals(FVector::RightVector, dirCur);
 				}
 
 				lastQuat = quatB;
@@ -233,8 +230,8 @@ public:
 					FVector va = quatA.RotateVector(unitCircle[ci / 2]);
 					FVector vb = quatB.RotateVector(unitCircle[ci / 2]);
 
-					circleVertices[ci] = va * element_cur.radius + a;
-					circleVertices[ci + 1] = vb * element_cur.radius + b;
+					circleVertices[ci + 1] = va * element_cur.radius + a;
+					circleVertices[ci] = vb * element_cur.radius + b;
 				}
 
 				const LineElement& evenElement = element_last;
@@ -254,6 +251,275 @@ public:
 					);
 				}
 			}
+		}
+	}
+
+	// Frenet-Serret frames: https://en.wikipedia.org/wiki/Frenet%E2%80%93Serret_formulas
+	template<typename Func>
+	void processWithFunction(Func func)
+	{
+		using SegmentType = LineElement::SegmentType;
+
+		const auto uvs = getUVs(0.0f, 1.0f);
+
+		// pre-compute the unit circle
+		TArray<FVector> unitCircle;
+		{
+			unitCircle.SetNum(numCircleComponents);
+
+			float piStep = M_PI * 2.0 / float(numCircleComponents);
+			for (int i = 0; i < numCircleComponents; ++i)
+			{
+				float t = float(i) * piStep;
+
+				float x = FMath::Cos(t);
+				float z = FMath::Sin(t);
+
+				unitCircle[i] = FVector(0.0, x, z);
+			}
+		}
+
+		// find the vertex positions
+		{
+			const FVector up = FVector::UpVector;
+
+			const int32 m = numCircleComponents * 2;
+
+			int32 pi = 0;
+
+			TArray<FVector> circleVertices;
+			circleVertices.SetNum(m);
+
+			FQuat lastQuat = FQuat::Identity;
+			FVector dirLast;
+
+			FVector tangent;
+			FVector normal;
+			FVector binormal;
+
+			// draw segments
+			for (int32 i = 0; i < lineSegments.Num() - 1; ++i)
+			{
+				auto& element_cur = lineSegments[i + 0];
+				auto& element_next = lineSegments[i + 1];
+
+				FVector dirCur = (element_next.point - element_cur.point).GetSafeNormal();
+
+				// protect against no direction
+				if (dirCur.Equals(FVector::ZeroVector))
+					dirCur = dirLast;
+
+				FQuat curQuat = FQuat::Identity;
+
+				if (element_cur.type == SegmentType::Begin)
+				{
+					tangent = dirCur;
+
+					if (tangent.Equals(FVector::ForwardVector))
+						normal = FVector::UpVector;
+					else
+						normal = FVector::CrossProduct(FVector::ForwardVector, tangent);
+
+					binormal = FVector::CrossProduct(tangent, normal);
+
+					curQuat = FRotationMatrix::MakeFromXY(tangent, binormal).ToQuat();
+					lastQuat = curQuat;
+				}
+				else if (element_cur.type == SegmentType::Middle)
+				{
+					tangent = dirCur;
+
+					normal = FVector::CrossProduct(binormal, tangent);
+					binormal = FVector::CrossProduct(tangent, normal);
+
+					curQuat = FRotationMatrix::MakeFromXY(tangent, binormal).ToQuat();
+				}
+				else if (element_cur.type == SegmentType::End)
+					continue;
+
+
+				auto drawSegment = [&](LineElement& e_a, LineElement& e_b, FQuat quat_a, FQuat quat_b) {
+					const FVector& a = e_a.point;
+					const FVector& b = e_b.point;
+
+					// compute the transformed unit circle vertices
+					for (int ci = 0; ci < m; ci += 2)
+					{
+						FVector va = quat_a.RotateVector(unitCircle[ci / 2]);
+						FVector vb = quat_b.RotateVector(unitCircle[ci / 2]);
+
+						circleVertices[ci + 1] = va * element_cur.radius + a;
+						circleVertices[ci] = vb * element_cur.radius + b;
+					}
+
+					const LineElement& evenElement = e_a;
+					const LineElement& oddElement = e_b;
+
+					for (int j = 0; j < m; j += 2)
+					{
+
+						func(circleVertices[(j + 3) % m], circleVertices[j + 1], circleVertices[j + 0],
+							uvs[(j + 3) % m], uvs[j + 1], uvs[j + 0],
+							oddElement.color, oddElement.color, evenElement.color);
+
+						func(circleVertices[(j + 2) % m], circleVertices[(j + 3) % m], circleVertices[j + 0],
+							uvs[(j + 2) % m], uvs[(j + 3) % m], uvs[j + 0],
+							evenElement.color, oddElement.color, evenElement.color
+						);
+					}
+				};
+
+				if (i >= 1)
+				{
+					auto& element_last = lineSegments[i - 1];
+
+					if( element_last.type != SegmentType::End && element_last.type != SegmentType::Begin )
+						drawSegment(element_last, element_cur, lastQuat, curQuat);
+				}
+
+				drawSegment(element_cur, element_next, curQuat, curQuat);
+
+
+				lastQuat = curQuat;
+				dirLast = dirCur;
+			}
+
+			// draw caps
+			for (int32 i = 0; i < lineSegments.Num() - 1; ++i)
+			{
+				auto& element_cur = lineSegments[i + 0];
+				auto& element_next = lineSegments[i + 1];
+
+				FVector dirCur = (element_next.point - element_cur.point).GetSafeNormal();
+
+				// protect against no direction
+				if (dirCur.Equals(FVector::ZeroVector))
+					dirCur = dirLast;
+
+				FQuat curQuat = FQuat::Identity;
+
+				if (element_cur.type == SegmentType::Begin)
+				{
+					tangent = dirCur;
+
+					if (tangent.Equals(FVector::ForwardVector))
+						normal = FVector::UpVector;
+					else
+						normal = FVector::CrossProduct(FVector::ForwardVector, tangent);
+
+					binormal = FVector::CrossProduct(tangent, normal);
+
+					curQuat = FRotationMatrix::MakeFromXY(tangent, binormal).ToQuat();
+					lastQuat = curQuat;
+				}
+				else if (element_cur.type == SegmentType::Middle)
+				{
+					tangent = dirCur;
+
+					normal = FVector::CrossProduct(binormal, tangent);
+					binormal = FVector::CrossProduct(tangent, normal);
+
+					curQuat = FRotationMatrix::MakeFromXY(tangent, binormal).ToQuat();
+				}
+				else if (element_cur.type == SegmentType::End)
+					continue;
+
+
+
+				//auto drawCap = [&](LineElement& e_a, FQuat quat_a, bool flip = false) {
+				//	const FVector& a = e_a.point;
+
+				//	// compute the transformed unit circle vertices
+				//	for (int ci = 0; ci < m; ci += 2)
+				//	{
+				//		FVector va = quat_a.RotateVector(unitCircle[ci / 2]);
+				//		
+				//		int ia = !flip ? 1 : 0;
+				//		int ib = !flip ? 0 : 1;
+
+				//		circleVertices[ci + ia] = a;
+				//		circleVertices[ci + ib] = va * e_a.radius + a;
+				//	}
+
+				//	const LineElement& evenElement = e_a;
+				//	const LineElement& oddElement = e_a;
+
+				//	for (int j = 0; j < m; j += 2)
+				//	{
+				//		func(circleVertices[(j + 3) % m], circleVertices[j + 1], circleVertices[j + 0],
+				//			uvs[(j + 3) % m], uvs[j + 1], uvs[j + 0],
+				//			oddElement.color, oddElement.color, evenElement.color);
+
+				//		func(circleVertices[(j + 2) % m], circleVertices[(j + 3) % m], circleVertices[j + 0],
+				//			uvs[(j + 2) % m], uvs[(j + 3) % m], uvs[j + 0],
+				//			evenElement.color, oddElement.color, evenElement.color
+				//		);
+				//	}
+				//};
+
+				auto drawCap = [&](FVector point_a, float radius_a, FColor color_a, FVector point_b, float radius_b, FColor color_b, FQuat quat, bool flip = false) {
+					// compute the transformed unit circle vertices
+					for (int ci = 0; ci < m; ci += 2)
+					{
+						FVector va = quat.RotateVector(unitCircle[ci / 2]);
+
+						int ia = !flip ? 1 : 0;
+						int ib = !flip ? 0 : 1;
+
+						circleVertices[ci + ia] = va * radius_a + point_a;
+						circleVertices[ci + ib] = va * radius_b + point_b;
+					}
+
+					for (int j = 0; j < m; j += 2)
+					{
+						func(circleVertices[(j + 3) % m], circleVertices[j + 1], circleVertices[j + 0],
+							uvs[(j + 3) % m], uvs[j + 1], uvs[j + 0],
+							color_b, color_b, color_a);
+
+						func(circleVertices[(j + 2) % m], circleVertices[(j + 3) % m], circleVertices[j + 0],
+							uvs[(j + 2) % m], uvs[(j + 3) % m], uvs[j + 0],
+							color_a, color_b, color_a
+						);
+					}
+				};
+
+				auto drawHemisphere = [&](LineElement& element, bool flip = false)
+				{
+					FVector forwardDir = curQuat  * FVector::ForwardVector * (flip ? 1.0f : -1.0f);
+
+					FVector p = element.point;
+					float r = element.radius;
+
+					const int numLats = 2;
+					for (int lat = 0; lat < numLats; ++lat)
+					{
+						float frac_a = (float(lat + 1) / float(numLats));
+						float frac_b = (float(lat) / float(numLats));
+
+						FVector a = p + forwardDir * frac_a;
+						FVector b = p + forwardDir * frac_b;
+
+						float r_a = FMath::Sqrt(r * r - FMath::Pow(frac_a * r, 2.0f));
+						float r_b = FMath::Sqrt(r * r - FMath::Pow(frac_b * r, 2.0f));
+
+						drawCap(a, r_a, element.color, b, r_b, element.color, curQuat, flip);
+					}
+				};
+
+				if (element_cur.type == SegmentType::Begin)
+				{
+					drawHemisphere(element_cur, false);
+				}
+
+				if (element_next.type == SegmentType::End)
+				{
+					drawHemisphere(element_next, true);
+				}
+
+				lastQuat = curQuat;
+				dirLast = dirCur;
+			}
+
 		}
 	}
 

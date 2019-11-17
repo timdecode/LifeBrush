@@ -954,8 +954,8 @@ void UChunkedVolumeComponent::initializeTestVolume()
 	}
 
 
-	PaddedUniformGrid<float> chunk0 = _grid.chunkAtChunkIndex(FIntVector(0, 0, 0));
-	PaddedUniformGrid<float> chunk1 = _grid.chunkAtChunkIndex(FIntVector(0, 0, -1));
+	UniformGrid<float> chunk0 = _grid.chunkAtChunkIndex(FIntVector(0, 0, 0));
+	UniformGrid<float> chunk1 = _grid.chunkAtChunkIndex(FIntVector(0, 0, -1));
 
 	float a0 = chunk0(0, 0, -1);
 	float a1 = chunk1(0, 0, 63);
@@ -992,7 +992,7 @@ void UChunkedVolumeComponent::markDirtyIndex(FIntVector minGridIndex, FIntVector
 {
 	_dirtyAccess = [=](ChunkGrid<float>& grid)  
 	{
-		auto chunkGeometries = ChunkedMarchingCubes::marchingCubes_byChunk(isoLevel, grid, minGridIndex, maxGridIndex, uvScale, true, flatShading);
+		auto chunkGeometries = ChunkedMarchingCubes::dualMarchingCubes_byChunk(isoLevel, grid, minGridIndex, maxGridIndex, uvScale, true, flatShading);
 
 		AsyncTask(ENamedThreads::GameThread, [=]() mutable
 		{

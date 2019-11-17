@@ -57,6 +57,9 @@ protected:
 
 	UPROPERTY()
 	TSet<USEGraphEvent*> _selection;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	int32 maxHops = 1;
 };
 
 
@@ -130,7 +133,9 @@ public:
 		_camera = camera_in;
 	}
 
-	virtual void loseFocus() override;
+	virtual void loseFocus();
+
+	virtual bool shouldShowBrush();
 
 	virtual void faceDown_released() override;
 
@@ -138,8 +143,6 @@ public:
 	virtual void oneHandEnd(UPrimitiveComponent * hand) override;
 
 	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform) override;
-
-	virtual bool shouldShowBrush() override;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
@@ -155,5 +158,5 @@ protected:
 	FTransform _grabbedTransform;
 	FTransform _startHand;
 
-	TMap<FGraphNodeHandle, FVector> _cachedCalculatedVelocity;
+	FVector _releaseVelocity = FVector::ZeroVector;
 };

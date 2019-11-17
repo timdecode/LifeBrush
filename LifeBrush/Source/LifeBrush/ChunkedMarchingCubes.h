@@ -9,6 +9,7 @@
 #include "Utility.h"
 
 #include "UniformGrid.h"
+#include "ManifoldDualMC/dualmc.h"
 
 // This code is adapted from Paul Bourke's Marching Cubes Guide 
 // http://paulbourke.net/geometry/polygonise/
@@ -672,6 +673,165 @@ public:
 		}
 
 		return geometry;
+	}
+
+	// the return map is indexed by gridIndices
+	template<typename ElementType>
+	static std::map<FIntVector, ChunkGeometry> dualMarchingCubes_byChunk(
+		float isoLevel,
+		ChunkGrid<ElementType>& grid,
+		FIntVector gridMin,
+		FIntVector gridMax,
+		const FVector2D& uvScale,
+		bool reverseWinding = false,
+		bool flatShading = false)
+	{
+		const FVector cellSize = grid.cellSize();
+
+		FIntVector const vertexIndices[8] = {
+			FIntVector(0,0,0),
+			FIntVector(1,0,0),
+			FIntVector(1,1,0),
+			FIntVector(0,1,0),
+
+			FIntVector(0,0,1),
+			FIntVector(1,0,1),
+			FIntVector(1,1,1),
+			FIntVector(0,1,1)
+		};
+
+		FVector const vertexOffsets[] = {
+			FVector(vertexIndices[0]) * cellSize,
+			FVector(vertexIndices[1]) * cellSize,
+			FVector(vertexIndices[2]) * cellSize,
+			FVector(vertexIndices[3]) * cellSize,
+
+			FVector(vertexIndices[4]) * cellSize,
+			FVector(vertexIndices[5]) * cellSize,
+			FVector(vertexIndices[6]) * cellSize,
+			FVector(vertexIndices[7]) * cellSize
+		};
+
+		typedef std::remove_reference<decltype(grid)>::type GridType;
+
+		std::map<FIntVector, ChunkGeometry> result;
+
+		float normalSign = reverseWinding ? -1.0f : 1.0f;
+
+		FIntVector fromChunkIndex = grid.indexOfChunk(gridMin);
+		FIntVector toChunkIndex = grid.indexOfChunk(gridMax);
+
+		FIntVector fromCellIndex = grid.indexOfCell(gridMin);
+		FIntVector toCellIndex = grid.indexOfCell(gridMax);
+
+		FIntVector chunkIndex = fromChunkIndex;
+
+		struct IndexAndChunk
+		{
+			FIntVector index;
+			ChunkGeometry geometry;
+		};
+
+		std::vector<TFuture<IndexAndChunk>> futures;
+
+		// preallocate chunks so we don't do it on an async thread
+		for (chunkIndex.Z = fromChunkIndex.Z; chunkIndex.Z <= toChunkIndex.Z; chunkIndex.Z++)
+		{
+			for (chunkIndex.Y = fromChunkIndex.Y; chunkIndex.Y <= toChunkIndex.Y; chunkIndex.Y++)
+			{
+				for (chunkIndex.X = fromChunkIndex.X; chunkIndex.X <= toChunkIndex.X; chunkIndex.X++)
+				{
+					// gotta access this on this thread because it can create a chunk
+					auto& chunk = grid.chunkAtChunkIndex(chunkIndex);
+				}
+			}
+		}
+
+		for (chunkIndex.Z = fromChunkIndex.Z; chunkIndex.Z <= toChunkIndex.Z; chunkIndex.Z++)
+		{
+			for (chunkIndex.Y = fromChunkIndex.Y; chunkIndex.Y <= toChunkIndex.Y; chunkIndex.Y++)
+			{
+				for (chunkIndex.X = fromChunkIndex.X; chunkIndex.X <= toChunkIndex.X; chunkIndex.X++)
+				{
+					// calculate the local cell index start and end
+					FIntVector localFromCell;
+
+					for (int c = 0; c < 3; ++c)
+					{
+						if (chunkIndex[c] == fromChunkIndex[c])
+							localFromCell[c] = fromCellIndex[c];
+						else
+							localFromCell[c] = 0;
+					}
+
+					FIntVector localToCell;
+
+					for (int c = 0; c < 3; ++c)
+					{
+						int maxDim = grid.chunkDimensions()[c];
+
+						if (chunkIndex[c] == toChunkIndex[c])
+							localToCell[c] = toCellIndex[c] >= maxDim ? maxDim - 1 : toCellIndex[c];
+						else
+							localToCell[c] = maxDim - 1;
+					}
+
+					futures.emplace_back(Async<IndexAndChunk>(EAsyncExecution::ThreadPool, [=, &grid]() mutable
+					{
+						IndexAndChunk chunkAndIndex;
+
+						auto& chunk = grid.chunkAtChunkIndex(chunkIndex);
+
+						dualmc::DualMC<float> dualMC;
+
+						auto dim = chunk.dimensions();
+
+						std::vector<dualmc::Vertex> generatedVertices;
+						std::vector<dualmc::Quad> generatedQuads;
+
+						dualMC.buildQuadSoup(grid, chunk, chunkIndex, localFromCell, localToCell, isoLevel, true, true, generatedVertices, generatedQuads);
+
+
+						auto& geometry = chunkAndIndex.geometry;
+
+						auto unreal = [](dualmc::Vertex v) { return FVector(v.x, v.y, v.z); };
+
+						const FMatrix transform = FTranslationMatrix(chunk.bounds().Min) * FScaleMatrix(chunk.cellSize());
+
+						for (auto& quad : generatedQuads)
+						{
+							FVector verts[4] = {
+								transform.TransformPosition(unreal(generatedVertices[quad.i0])),
+								transform.TransformPosition(unreal(generatedVertices[quad.i1])),
+								transform.TransformPosition(unreal(generatedVertices[quad.i2])),
+								transform.TransformPosition(unreal(generatedVertices[quad.i3]))
+							};
+
+							geometry.factory.pushQuad(
+								verts[0], verts[1], verts[2], verts[3]
+							);
+						}
+
+						geometry.cellIndices = dualMC.cellIndices;
+
+//						chunkAndIndex.geometry = marchingCubes_byChunkAccessFast(isoLevel, grid, chunk, chunkIndex, localFromCell, localToCell, uvScale, reverseWinding, flatShading);
+						chunkAndIndex.index = chunkIndex;
+
+						return chunkAndIndex;
+					}));
+				}
+			}
+		}
+
+		// join the results from the async tasks
+		for (auto& future : futures)
+		{
+			const IndexAndChunk& chunkAndIndex = future.Get();
+
+			result[chunkAndIndex.index] = std::move(chunkAndIndex.geometry);
+		}
+
+		return result;
 	}
 
 	// the return map is indexed by gridIndices

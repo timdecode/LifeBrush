@@ -28,7 +28,10 @@ class LIFEBRUSH_API AElementActor : public AStaticMeshActor
 	GENERATED_BODY()
 	
 public:
-
+	// Whether the UStaticMeshComponent attached to this actor should be the basis for an
+	// FGraphMesh. False means we don't automatically attach one to the node.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Agent Library")
+	bool shouldGenerateMeshObject = true;
 
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Agent Library" )
 	TArray<FTimStructBox> graphObjects;
@@ -82,13 +85,32 @@ public:
 	// Called every frame
 	virtual void Tick( float DeltaSeconds ) override;
 
-	void writeToElement(ElementTuple& element, FGraph& graph);
+	virtual void writeToElement(ElementTuple& element, FGraph& graph);
 	void readFromElement( ElementTuple& element, FGraph& graph);
-	void readFromActor( AElementActor* elementActor );
 
 	void showSelectionOutline();
 	void hideSelectionOutline();
 
 protected:
 	void _loadAggregate(FGraphNodeHandle elementNode, FGraph& graph);
+
+	void _loadSubElementActor(
+		AElementActor * elementActor,
+		FGraph &graph,
+		TArray<FGraphNodeHandle> &particlesInBody,
+		TArray<FGraphNodeHandle> &membersInBody,
+		TArray<FGraphNodeHandle> &aggregatesInBody
+	);
+
+	void _loadAggregateProxy(
+		UAggregateProxyComponent * aggregateProxy, 
+		FGraph &graph, 
+		TArray<FGraphNodeHandle> &particlesInBody, 
+		TArray<FGraphNodeHandle> &membersInBody, 
+		TArray<FGraphNodeHandle> &aggregatesInBody);
+
+	void _loadSubElements(FGraphNodeHandle elementNode,
+		TArray<FGraphNodeHandle>& particlesInBody,
+		TArray<FGraphNodeHandle>& membersInBody,
+		TArray<FGraphNodeHandle>& aggregatesInBody);
 };

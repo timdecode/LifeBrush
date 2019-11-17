@@ -16,12 +16,11 @@ void UStringGenerator::attach(SynthesisContext * context, UGraphSimulationManage
 	Super::attach(context, simulationManager_hack);
 
 	_context = context;
-
 	_simulationManager = simulationManager_hack;
 
-	UMeshSimulation * meshSim = _simulationManager->registerSimulation<UMeshSimulation>();
+	_simulationManager->attachAllSimulations();
 
-	_simulationManager->attachSimulations();
+	flexSimulation->play();
 
 	_initPath();
 }
@@ -30,9 +29,7 @@ void UStringGenerator::detach()
 {
 	Super::detach();
 
-	UMeshSimulation * meshSim = _simulationManager->registerSimulation<UMeshSimulation>();
-
-	meshSim->detach();
+	flexSimulation->pause();
 
 	_initPath();
 }
@@ -120,7 +117,9 @@ void UStringGenerator::beginBrushPath(FVector point, float radius, FSurfaceIndex
 
 void UStringGenerator::addBrushPoint(FVector point, float radius, FSurfaceIndex surfaceIndex /*= FSurfaceIndex::OffSurface*/)
 {
-	Eigen::Vector3f eigen_point = eigen(point);
+	FVector localPoint = flexSimulationComponent->GetOwner()->GetTransform().InverseTransformPosition(point);
+
+	Eigen::Vector3f eigen_point = eigen(localPoint);
 
 	if (!_brushPoints.empty())
 	{

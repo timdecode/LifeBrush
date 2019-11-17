@@ -131,9 +131,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 maxPathHistory = 900;
 
-public:
+protected:
 	virtual void attach() override;
 
+public:
 	virtual void clear() override;
 
 	virtual void tick(float deltaT) override;
@@ -164,7 +165,7 @@ public:
 
 	std::vector<USEGraphEvent*> eventsOverlappingPosition(const FVector position, float radius);
 
-	void traceEvents(std::vector<USEGraphEvent*> events);
+	void traceEvents(std::vector<USEGraphEvent*> events, int maxHops = 1);
 
 	// -1, use maxFramesBack to find minFrame
 	void showAllEvents();
@@ -235,10 +236,10 @@ struct LIFEBRUSH_API FPositionSnapshot
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	TArray<FVector> agentPositions;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	TBitArray<> validPositions;
+	
 	int32 frameNumber = 0;
 };
 
@@ -247,9 +248,10 @@ class LIFEBRUSH_API UVisualization_AgentPathLines : public UObjectSimulation, pu
 {
 	GENERATED_BODY()
 
-public:
+protected:
 	virtual void attach();
 
+public:
 	virtual void clear();
 
 	virtual void tick(float deltaT) override;
@@ -278,6 +280,9 @@ public:
 
 	UPROPERTY()
 	UColoredLineFactory * _agentPathFactory;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	bool hidePaths = true;
 
 	USceneComponent * camera;
 
@@ -334,7 +339,8 @@ protected:
 
 	bvh::BVH pathBVH;
 
-	UPROPERTY()
+	// No, let's not persist this.
+//	UPROPERTY()
 	TArray<FPositionSnapshot> totalHistory;
 
 	std::unordered_set<FGraphNodeHandle> _totalHistoryAgents;

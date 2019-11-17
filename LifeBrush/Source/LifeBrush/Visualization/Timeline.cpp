@@ -5,9 +5,12 @@
 #include "Simulation/FlexElements.h"
 
 #include "Visualization/EdgeFactory.h"
-#include "Visualization/Timeline.h"
+#include "Simulation/MeshFilamentSimulation.h"
 
 #include "IXRTrackingSystem.h"
+
+#include "Visualization/Timeline.h"
+#include "Simulation/Aggregates.h"
 
 void UTimelineSimulation::attach()
 {
@@ -330,7 +333,7 @@ std::vector<USEGraphEvent*> UTimelineSimulation::eventsOverlappingPosition(const
 	return overlaps;
 }
 
-void UTimelineSimulation::traceEvents(std::vector<USEGraphEvent*> events)
+void UTimelineSimulation::traceEvents(std::vector<USEGraphEvent*> events, int maxHopes)
 {
 
 	std::vector<int32> sortedFrameNumbers;
@@ -351,7 +354,7 @@ void UTimelineSimulation::traceEvents(std::vector<USEGraphEvent*> events)
 		TSet<FGraphNodeHandle> tracedAgents;
 		TSet<USEGraphEvent*> tracedEvents;
 
-		_expandFrames2(graphEvent, sortedFrameNumbers, tracedAgents, tracedEvents, 1);
+		_expandFrames2(graphEvent, sortedFrameNumbers, tracedAgents, tracedEvents, maxHopes);
 
 		allTracedAgents.Append(tracedAgents);
 		allTracedEvents.Append(tracedEvents);
@@ -453,6 +456,8 @@ bool UTimelineSimulation::_parseFrame(USEGraphFrame * frame, TSet<FGraphNodeHand
 
 			agents_out.Add(event->triggeringAgent);
 			agents_out.Append(event->otherAgents);
+
+			events_out.Add(event);
 		}
 	}
 
@@ -826,6 +831,43 @@ void UVisualization_AgentPathLines::_tickVisibility(float deltaT)
 		mesh.visible = !hit;
 		mesh.desaturated = desaturate;
 	}
+
+	// path visibility
+	if( hidePaths && false ) 
+	{
+		TypedEdgeStorage<FFilamentConnection>& filamentStorage = graph->rawEdgeStorage<FFilamentConnection>();
+
+		size_t n = filamentStorage.totalSize();
+		for (int i = 0; i < n; ++i)
+		{
+			if (!filamentStorage.isValid(i)) continue;
+
+			FFilamentConnection& filament = filamentStorage[i];
+
+			FGraphEdge& edge = graph->edge(filamentStorage.edge(i));
+
+			FGraphNodeHandle ha = FGraphNodeHandle(edge.a);
+			FGraphNodeHandle hb = FGraphNodeHandle(edge.b);
+
+			FGraphNode& a = graph->node(edge.a);
+			FGraphNode& b = graph->node(edge.b);
+
+			FVector mid = (b.position + a.position) * 0.5f;
+
+			bvh::Ray ray;
+			ray.origin = mid;
+
+			FVector dir = (mid - cameraPosition);
+
+			ray.direction = dir.GetSafeNormal();
+
+			bvh::IntersectionInfo intersection;
+
+			bool hit = pathBVH.getIntersection(ray, intersection, true, true);
+
+			filament.visible = !hit;
+		}
+	}
 }
 
 
@@ -876,6 +918,28 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 
 	FPositionSnapshot * last = nullptr;
 
+	// filter the agents just to aggregate roots or the single agents
+	std::vector<FGraphNodeHandle> filteredAgents;
+	{
+		TSet<FGraphNodeHandle> filteredSet;
+
+		for (FGraphNodeHandle handle : agents)
+		{
+			FMLAggregateNO * no = FMLAggregateNO::getAggregate(*graph, handle);
+
+			if (no)
+			{
+				filteredSet.Add(no->nodeHandle());
+			}
+			else
+				filteredSet.Add(handle);
+		}
+
+		for (FGraphNodeHandle handle : filteredSet)
+			filteredAgents.push_back(handle);
+	}
+
+
 	for (auto& current : totalHistory)
 	{
 		if (current.frameNumber > maxFrame)
@@ -883,19 +947,25 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 
 		if (last && current.frameNumber > minFrame)
 		{
-			for (FGraphNodeHandle agent : agents)
+			for (FGraphNodeHandle agent : filteredAgents)
 			{
 				if (agent.index >= current.agentPositions.Num() || agent.index >= last->agentPositions.Num())
 					continue;
 
+				if( !current.validPositions[agent.index] || !last->validPositions[agent.index] )
+					continue;
+
 				auto& builder = lineBuilders[agent];
 
-				FVector p = current.agentPositions[agent.index];
+				if (agent.index < current.agentPositions.Num())
+				{
+					FVector p = current.agentPositions[agent.index];
 
-				if (builder.lineSegments.Num() == 0)
-					builder.begin(p, radius);
-				else
-					builder.addPoint(p, radius);
+					if (builder.lineSegments.Num() == 0)
+						builder.begin(p, radius);
+					else
+						builder.addPoint(p, radius);
+				}
 			}
 		}
 
@@ -903,7 +973,7 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 	}
 
 	// connect to the current agent position
-	for (FGraphNodeHandle agent : agents)
+	for (FGraphNodeHandle agent : filteredAgents)
 	{
 		FVector p = graph->node(agent).position;
 
@@ -953,6 +1023,8 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 		}
 	}
 	
+	auto& meshes = graph->componentStorage<FGraphMesh>();
+
 	// Merge builders into one builder per material
 	std::unordered_map<UMaterialInterface*, FColoredLineBuilder> builderByMaterial;
 	{
@@ -987,10 +1059,42 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 			FGraphNodeHandle node = pair.first;
 			auto& builder = pair.second;
 
-			if (!node(graph).hasComponent<FGraphMesh>())
-				continue;
+			UMaterialInterface * material = nullptr;
 
-			UMaterialInterface * material = node(graph).component<FGraphMesh>(graph).material;
+			if (FGraphMesh * mesh = graph->componentPtr<FGraphMesh>(node))
+			{
+				material = mesh->material;
+			}
+			else
+			{
+				// see if its on the aggregate
+				FMLAggregateNO * aggregate = FMLAggregateNO::getAggregate(*graph, node);
+
+				if (aggregate)
+				{
+					FGraphNode& aggregateNode = graph->node(aggregate->nodeHandle());
+
+					if (FGraphMesh * aggregateMesh = meshes.componentPtrForNode(aggregateNode.handle()))
+					{
+						material = aggregateMesh->material;
+					}
+					else
+					{
+						aggregateNode.each<FMLAggregateEO>(*graph, [&](FGraphNodeHandle other, FMLAggregateEO& eo)
+						{
+							FGraphMesh * otherMesh = meshes.componentPtrForNode(other);
+
+							if (otherMesh)
+								material = otherMesh->material;
+						});
+
+					}
+				}
+			}
+
+
+			if (!material)
+				continue;
 
 			auto& mergedBuilder = builderByMaterial[material];
 
@@ -1005,6 +1109,10 @@ UVisualization_AgentPathLines::coloredLinesForAgents(const std::vector<FGraphNod
 void UVisualization_AgentPathLines::showTotalHistoryForAgents(const std::vector<FGraphNodeHandle>& agents, int32 minFrame, int32 maxFrame)
 {
 	showAgentPathLines = false;
+
+	// desaturate the filament simulation
+	if( UMeshFilamentSimulation * meshFilamentSimulation = simulationManager->simulation<UMeshFilamentSimulation>() )
+		meshFilamentSimulation->setDesaturated(agents.size() > 0);
 
 	_clearDynamicEdgeFactory();
 
@@ -1022,7 +1130,7 @@ void UVisualization_AgentPathLines::showTotalHistoryForAgents(const std::vector<
 
 		builder.numCircleComponents = 12;
 
-		_agentPathFactory->commitSection(builder, section, material);
+		_agentPathFactory->commitWithFastPathOption(builder, section, material);
 	}
 
 	// refactor coloredBuilders into fatEdges
@@ -1065,6 +1173,10 @@ void UVisualization_AgentPathLines::_clearAgentPathFactory()
 
 void UVisualization_AgentPathLines::hideTotalHistory()
 {
+	// show the filament simulation as normal again
+	if (UMeshFilamentSimulation * meshFilamentSimulation = simulationManager->simulation<UMeshFilamentSimulation>())
+		meshFilamentSimulation->setDesaturated(false);
+
 	_clearAgentPathFactory();
 
 	_totalHistoryAgents.clear();
@@ -1149,11 +1261,10 @@ void UVisualization_AgentPathLines::captureFrame()
 	FPositionSnapshot& snapshot = totalHistory.Last();
 
 	snapshot.agentPositions.SetNum(graph->allNodes.Num());
+	snapshot.validPositions.Init(false, graph->allNodes.Num());
 	for (FGraphNode& node : graph->allNodes)
 	{
-		if (!node.isValid())
-			continue;
-
+		snapshot.validPositions[node.id] = node.isValid();
 		snapshot.agentPositions[node.id] = node.position;
 	}
 

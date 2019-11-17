@@ -273,13 +273,21 @@ void UDigTool::SaveMeshToCollection()
 	
 	URuntimeMeshComponent * rmc = _lastVolume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
 
+	_saveMeshToScene(rmc);
+
+	ExitSession();
+}
+
+
+void UDigTool::_saveMeshToScene(URuntimeMeshComponent * rmc)
+{
 #if WITH_EDITOR
 	UWorld * world = GEditor->EditorWorld;
 
 	AActor * newActor = world->SpawnActor<AActor>();
 
 	// create scene root
-	if( USceneComponent * newScene = NewObject<USceneComponent>(newActor) )
+	if (USceneComponent * newScene = NewObject<USceneComponent>(newActor))
 	{
 		AActor * originalActor = rmc->GetOwner();
 
@@ -301,8 +309,6 @@ void UDigTool::SaveMeshToCollection()
 
 	newActor->SetActorLabel(name);
 #endif
-
-	ExitSession();
 }
 
 FString UDigTool::_actorLabelByDate(FString baseName)
@@ -314,7 +320,16 @@ FString UDigTool::_actorLabelByDate(FString baseName)
 
 void UDigTool::SaveMeshToScene()
 {
+	// save unclipped
+	URuntimeMeshComponent * originalRMC = _lastVolume->GetOwner()->FindComponentByClass<URuntimeMeshComponent>();
+	_saveMeshToScene(originalRMC);
+
 	flexComponent->updateMeshInterface(_lastVolume);
+
+	// save clipped
+	URuntimeMeshComponent * clippedRMC = flexComponent->meshInterfaceRMC();
+
+	_saveMeshToScene(clippedRMC);
 
 	if (popupActor)
 	{
@@ -410,6 +425,7 @@ void UDigTool::_smooth( UChunkedVolumeComponent * volume, FVector volumePosition
 		volume->markDirty(startP - 2, endP + 2);
 	});
 }
+
 
 void UDigTool::_convolve(ChunkGrid<float>& grid, FIntVector& index )
 {

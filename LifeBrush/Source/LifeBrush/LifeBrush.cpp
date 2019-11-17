@@ -20,14 +20,14 @@
 #include "EditorModuleInlined/GraphSimulationEdMode.h"
 #endif
 
-IMPLEMENT_PRIMARY_GAME_MODULE( FRegionGrowing, RegionGrowing, "RegionGrowing" );
+IMPLEMENT_PRIMARY_GAME_MODULE( FLifeBrush, LifeBrush, "LifeBrush" );
 
 FCustomVersionRegistration GRegisterGraphCustomVersion(FGraphVersion::GUID, FGraphVersion::LatestVersion, TEXT("FGraphVersion latest"));
 
 
 static void anAdressToFindTheDll() {}
 
-void FRegionGrowing::StartupModule()
+void FLifeBrush::StartupModule()
 {
 #ifdef __APPLE__
     Dl_info info;
@@ -75,7 +75,7 @@ void FRegionGrowing::StartupModule()
 #endif
 }
 
-void FRegionGrowing::ShutdownModule()
+void FLifeBrush::ShutdownModule()
 {
 #if WITH_EDITOR
     FPropertyEditorModule& propertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -99,7 +99,7 @@ void FRegionGrowing::ShutdownModule()
 }
 
 #if WITH_EDITOR
-void FRegionGrowing::registerCustomClassLayout(FName className, FOnGetDetailCustomizationInstance detailLayoutDelegate)
+void FLifeBrush::registerCustomClassLayout(FName className, FOnGetDetailCustomizationInstance detailLayoutDelegate)
 {
     registeredClassNames.Add( className );
     

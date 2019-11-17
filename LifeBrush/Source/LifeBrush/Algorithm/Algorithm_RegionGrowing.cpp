@@ -183,24 +183,30 @@ AlgorithmResult Algorithm_RegionGrowing::_generate( std::vector<PositionFace>& s
 		{
 			PositionFace positionFace( origin.position, origin.surfaceIndex );
 
-			auto local = _context.domain.nearestInRadius( origin.position, radius, -1, false );
 			auto generationArea = _context.domain.nearestInRadius( origin.position, origin.radius );
 
-			for(auto e : local)
+			for(auto e : generationArea)
 			{
 				if(_horizon.find( e ) == _horizon.end())
 					continue;
 
 				// don't add elements to the problem if we are generating on a surface and the element isn't on a surface
-				if(!enableVolumeSurfaceInteraction && origin.surfaceIndex.isOnSurface() && generationMode == EGenerationMode::SurfacePainting)
-					continue;
+				if (enableVolumeSurfaceInteraction)
+				{
+					localHorizon.insert(e);
+				}
+				else
+				{
+					ElementTuple element(e, graph());
 
-				localHorizon.insert( e );
+					if (element.element.surfaceIndex.isOnSurface() == origin.surfaceIndex.isOnSurface())
+						localHorizon.insert(e);
+				}
 			}
 
 			// do we need to add any seed points?
 			// yes, if there are no elements nearby or if there are no points in our generation radius
-			if(!(local.size() == 0 || generationArea.size() == 0))
+			if(generationArea.size() != 0)
 				return;
 
 			if(!_occlusionTester->isVisible( positionFace, 1.0f ))
@@ -408,34 +414,41 @@ AlgorithmResult Algorithm_RegionGrowing::_generate( std::vector<PositionFace>& s
 						FGraphNodeHandle ex_siblingHandle = toAdd[j];
 						ElementTuple ex_sibling(ex_siblingHandle, exemplarGraph());
 
+						auto newSurfaceIndex = newSurfaces[j];
+
 						int elementIndex = _context.domain.size();
 
-						FGraphNodeHandle newHandle = _copyExemplarToOutput( ex_siblingHandle, exemplarGraph(), newPosition, exampleSelection );
+						FQuat newRotation = ex_sibling.node.orientation;
+
+						if (generationMode == EGenerationMode::SurfaceProjection)
+						{
+							auto rotationAndNormal = _context.meshInterface->rotationAndNormalAtSurfacePoint(unreal(newPosition));
+
+							FQuat quat = rotationAndNormal.first;
+							FQuat rotation = quat * ex_sibling.node.orientation;
+
+							newRotation = rotation;
+						}
+						else if (!forceRotation && (generationMode == EGenerationMode::SurfaceWalking || generationMode == EGenerationMode::SurfacePainting))
+						{
+							auto rotationAndNormal = _context.meshInterface->rotationAndNormalAtIndex(newSurfaceIndex);
+
+							FQuat quat = rotationAndNormal.first;
+							FQuat rotation = quat * ex_sibling.node.orientation;
+
+							newRotation = rotation;
+						}
+						else if (forceRotation)
+							newRotation = forcedRotation;
+
+
+						FGraphNodeHandle newHandle = _copyExemplarToOutput( ex_siblingHandle, exemplarGraph(), newPosition, exampleSelection, newRotation);
 
 						ElementTuple newElement(newHandle, graph());
 
-						newElement.element.surfaceIndex = newSurfaces[j];
+						newElement.element.surfaceIndex = newSurfaceIndex;
 
-						if(generationMode == EGenerationMode::SurfaceProjection)
-						{
-							auto rotationAndNormal = _context.meshInterface->rotationAndNormalAtSurfacePoint( unreal( newPosition ) );
 
-							FQuat quat = rotationAndNormal.first;
-							FQuat rotation = quat * ex_sibling.node.orientation;
-
-							newElement.node.orientation = rotation;
-						}
-						else if(!forceRotation && (generationMode == EGenerationMode::SurfaceWalking || generationMode == EGenerationMode::SurfacePainting))
-						{
-							auto rotationAndNormal = _context.meshInterface->rotationAndNormalAtIndex(newElement.element.surfaceIndex );
-
-							FQuat quat = rotationAndNormal.first;
-							FQuat rotation = quat * ex_sibling.node.orientation;
-
-							newElement.node.orientation = rotation;
-						}
-						else if(forceRotation)
-							newElement.node.orientation = forcedRotation;
 
 						result.generated.push_back( newHandle );
 						localHorizon.insert( newHandle );

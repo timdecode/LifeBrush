@@ -12,42 +12,54 @@
 #include "Simulation/FlexElements.h"
 #include "Simulation/Aggregates.h"
 
-void URegionGrowingGenerator::attach(SynthesisContext * context, UGraphSimulationManager * simulationManager_hack)
-{
-	Super::attach(context, simulationManager_hack);
 
-	if (!context || !simulationManager_hack)
+
+void URegionGrowingGenerator::init(SynthesisContext * context, UGraphSimulationManager * simulationManager)
+{
+	Super::init(context, simulationManager);
+
+	_outputSimulationManager = simulationManager;
+
+	checkf(context && simulationManager, TEXT("We need a UGraphSimulationManager and a SynthesisContext."));
+	if (!context || !simulationManager)
 		return;
 
 	_generationWorker.resize(1);
 
 	_outputContext = context;
-	
-	// make sure the kd-tree is updated, other generators might not do this
-	_outputContext->domain.rebalance();
-
-	if( !_outputSimulationManager)
-		_outputSimulationManager = NewObject<UGraphSimulationManager>(this);
-
-	_outputSimulationManager->init(context->graph(), *simulationManager_hack->actor());
-	_outputSimulationManager->registerSimulation<UMeshSimulation>();
-	_outputSimulationManager->attachSimulations();
 
 	if (!_algorithm)
 		_algorithm = std::make_unique<Algorithm_RegionGrowing>(*_outputContext);
 
-	if( !_exemplarSimulationManager)
+	if (!_exemplarSimulationManager)
 		_exemplarSimulationManager = NewObject<UGraphSimulationManager>(this);
 
-	_exemplarSimulationManager->init(_algorithm->exemplarGraph(), *simulationManager_hack->actor());
-	_exemplarSimulationManager->attachSimulations();
-
+	_exemplarSimulationManager->init(_algorithm->exemplarGraph(), *simulationManager->actor());
+	_exemplarSimulationManager->attachAllSimulations();
 
 	loadParameters();
 
 	_algorithm->reloadContext();
 
 	syncExemplarFromElementActors();
+}
+
+void URegionGrowingGenerator::attach(SynthesisContext * context, UGraphSimulationManager * simulationManager)
+{
+	Super::attach(context, simulationManager);
+
+	flexSimulationComponent->tickFlexSimulation = false;
+	
+	// make sure the kd-tree is updated, other generators might not do this
+	_outputContext->domain.rebalance();
+
+	_outputSimulationManager->detachAllSimulations();
+
+	_outputSimulationManager->registerSimulation<UMeshSimulation>();
+	_outputSimulationManager->attachSimulation<UMeshSimulation>();
+
+	_outputSimulationManager->registerSimulation<UMeshFilamentSimulation>();
+	_outputSimulationManager->attachSimulation<UMeshFilamentSimulation>();
 }
 
 void URegionGrowingGenerator::detach()
@@ -75,8 +87,7 @@ void URegionGrowingGenerator::detach()
 		sp.position = node.position;
 	}
 
-	_outputSimulationManager->detachSimulations();
-	_exemplarSimulationManager->detachSimulations();
+	flexSimulationComponent->tickFlexSimulation = true;
 }
 
 void URegionGrowingGenerator::tick(float deltaT)
@@ -115,6 +126,18 @@ void URegionGrowingGenerator::tick(float deltaT)
 	// short circuit
 	if (pauseSynthesis)
 		return;
+
+	// if something else is running, don't do work on the other thread
+	if (flexSimulation->isPlaying())
+	{
+		_generationWorker.push([](int threadID) mutable {}).get();
+
+		// clear our brushes
+		// we can do this on this thread because our work thread is synced
+		_algorithm->clearBrushPoints();
+
+		return;
+	}
 
 	_generationWorkFinished = false;
 	
@@ -217,7 +240,9 @@ void URegionGrowingGenerator::beginBrushPath(FVector point, float radius, FSurfa
 
 void URegionGrowingGenerator::addBrushPoint(FVector point, float radius, FSurfaceIndex surfaceIndex /*= FSurfaceIndex::OffSurface*/)
 {
-	Eigen::Vector3f eigen_point = eigen(point);
+	FVector localPoint = flexSimulationComponent->GetOwner()->GetTransform().InverseTransformPosition(point);
+
+	Eigen::Vector3f eigen_point = eigen(localPoint);
 
 	_generationWorker.push([this, eigen_point, radius, surfaceIndex](int threadID) mutable
 	{
@@ -247,17 +272,19 @@ void URegionGrowingGenerator::beginEraserPath(FVector point, float radius, FSurf
 
 void URegionGrowingGenerator::eraseInRadiusAt(FVector point, float radius, FSurfaceIndex surfaceIndex /*= FSurfaceIndex::OffSurface*/)
 {
+	FVector localPoint = flexSimulationComponent->GetOwner()->GetTransform().InverseTransformPosition(point);
+
 	// space the points apart
 	if (_toRemove.size())
 	{
 		auto& last = _toRemove.back();
 
-		const float distSqrd = (eigen(point) - last.position).squaredNorm();
+		const float distSqrd = (eigen(localPoint) - last.position).squaredNorm();
 		if (distSqrd < last.radius * 0.2)
 			return;
 	}
 
-	_toRemove.emplace_back(eigen(point), brushSize, surfaceIndex);
+	_toRemove.emplace_back(eigen(localPoint), brushSize, surfaceIndex);
 }
 
 void URegionGrowingGenerator::endEraserPath()
@@ -271,13 +298,16 @@ void URegionGrowingGenerator::endEraserPath()
 
 
 
-void URegionGrowingGenerator::setSelection(std::vector<AElementActor*> elementActors)
+void URegionGrowingGenerator::setExampleSelection(std::vector<AElementActor*> elementActors)
 {
 	if (!_algorithm)
 		return;
 
 	// join the worker
 	_generationWorker.push([](int threadID) mutable {}).get();
+
+	// clear the brush path 
+	_algorithm->clearBrushPoints();
 
 	// build the selection from the _actorToElement map
 	std::vector<FGraphNodeHandle> selection;
@@ -289,14 +319,32 @@ void URegionGrowingGenerator::setSelection(std::vector<AElementActor*> elementAc
 
 		if (handle)
 			selection.push_back(handle);
-
-		spaceModeHint = actor->spaceModeHint;
 	}
 
 	// resync
 	syncExemplarFromElementActors();
 
 	_algorithm->updateExampleSelection(selection);
+}
+
+std::vector<FGraphNodeHandle> URegionGrowingGenerator::exampleSelection()
+{
+	return _algorithm->getExampleSelectionVector();
+}
+
+FGraphNodeHandle URegionGrowingGenerator::handleForExampleActor(AElementActor * elementActor)
+{
+	auto found = _actorToElement.find(elementActor);
+
+	if (found == _actorToElement.end())
+		return FGraphNodeHandle::null;
+	else
+		return found->second;
+}
+
+UGraphSimulationManager * URegionGrowingGenerator::exampleSimulationManager()
+{
+	return _exemplarSimulationManager;
 }
 
 void URegionGrowingGenerator::setGenerationMode(EGenerationMode generationMode)
@@ -316,11 +364,11 @@ EGenerationMode URegionGrowingGenerator::generationMode()
 
 void URegionGrowingGenerator::syncExemplarFromElementActors()
 {
-	if (!_algorithm || !exemplar)
+	if (!_algorithm || !exemplarActor)
 		return;
 
 	TArray<USceneComponent*> exemplarSceneComponents;
-	exemplar->GetRootComponent()->GetChildrenComponents(false, exemplarSceneComponents);
+	exemplarActor->GetRootComponent()->GetChildrenComponents(false, exemplarSceneComponents);
 
 	auto& exemplarDomain = _algorithm->exemplar();
 
@@ -373,18 +421,20 @@ void URegionGrowingGenerator::syncExemplarFromElementActors()
 			element.node.orientation = orientation;
 			element.node.scale = scale;
 
+			// HACK: Don't rewrite the element properties or the aggregate. 
+			//       Updating the aggregate is complicated and I'm out of time.
 			// first nuke the components that aren't an element
-			static const ComponentType ElementType = componentType<FElementObject>();
+			//static const ComponentType ElementType = componentType<FElementObject>();
 
-			auto components = element.node.components;
-			for (ComponentType component : components)
-			{
-				if( component == ElementType ) continue;
+			//auto components = element.node.components;
+			//for (ComponentType component : components)
+			//{
+			//	if( component == ElementType ) continue;
 
-				element.node.removeComponent(exemplarDomain.graph, component);
-			}
+			//	element.node.removeComponent(exemplarDomain.graph, component);
+			//}
 
-			elementActor->writeToElement(element, exemplarDomain.graph);
+			// elementActor->writeToElement(element, exemplarDomain.graph);
 
 			elementToActor.Add(h, elementActor);
 		}
@@ -409,26 +459,52 @@ void URegionGrowingGenerator::syncExemplarFromElementActors()
 		}
 	}
 
+
+	// -----------------------------------------------------
+	// DISABLING THIS
+	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	// nuke element that are gone from the exemplar
-	{
-		// get rid of the nodes
-		for (FGraphNode& node : exemplarDomain.graph.allNodes)
-		{
-			if (!node.isValid()) continue;
+	//if( false ) {
+	//	// get rid of the nodes
+	//	for (FGraphNode& node : exemplarDomain.graph.allNodes)
+	//	{
+	//		if (!node.isValid()) continue;
 
-			if (!elementToActor.Contains(node.handle()))
-			{
-				exemplarDomain.graph.removeNode(node.handle());
-			}
-		}
+	//		FMLAggregateNO * aggregateNodeObject = FMLAggregateNO::getAggregate(exemplarDomain.graph, node.handle());
 
-		// get rid of old references in the table
-		for (auto& pair : _actorToElement)
-		{
-			if (!elementToActor.Contains(pair.second))
-				_actorToElement.erase(pair.first);
-		}
-	}
+	//		// aggregates are a special case, only remove the aggregate if the exemplar actor is gone for the root of the aggregate
+	//		// otherwise, don't remove the sub-nodes
+	//		if (aggregateNodeObject)
+	//		{
+	//			FGraphNodeHandle aggregateHandle = aggregateNodeObject->nodeHandle();
+
+	//			if( aggregateHandle != node.handle() )
+	//				continue;
+	//		}
+
+	//		if (!elementToActor.Contains(node.handle()))
+	//		{
+	//			if (aggregateNodeObject)
+	//			{
+	//				FGraphNodeHandle aggregateHandle = aggregateNodeObject->nodeHandle();
+
+	//				FMLAggregateNO::removeAggregate(exemplarDomain.graph, aggregateHandle);
+	//			}
+	//			else
+	//				exemplarDomain.graph.removeNode(node.handle());
+	//		}
+	//	}
+
+	//	// get rid of old references in the table
+	//	for (auto& pair : _actorToElement)
+	//	{
+	//		if (!elementToActor.Contains(pair.second))
+	//			_actorToElement.erase(pair.first);
+	//	}
+	//}
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// DISABLING THIS
+	// -----------------------------------------------------
 
 	//exemplarDomain.graph.endTransaction();
 }

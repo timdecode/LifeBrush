@@ -1,4 +1,4 @@
-// Copyright 2019, Timothy Davison. All rights reserved.
+// Copyright 2016, Timothy Davison. All rights reserved.
 
 #pragma once
 
@@ -23,7 +23,8 @@ class UPhysicalInteractionTool;
 class UDiscreteElementEditorComponent;
 class URegionGrowingGeneratorTool;
 class UStringGeneratorTool;
-class UCollagenGeneratorTool;
+class UFilamentGeneratorTool;
+class UMolecularLegoGeneratorTool;
 class USwarmGeneratorTool;
 class URegionGrowing_GenerativeBrushTool;
 class UExemplarInspectorTool;
@@ -70,16 +71,17 @@ public:
 	UWidgetComponent * rightSelectionPointWidget;
 
 	UPROPERTY( EditInstanceOnly, BlueprintReadWrite, Category = "ShipEditor" )
-	AActor * regionGrowingActor = nullptr;
-
-	UPROPERTY( EditInstanceOnly, BlueprintReadWrite, Category = "ShipEditor" )
 	AActor * flexSimulationActor = nullptr;
 
+	// An actor that owns an UDiscreteElementEditorComponent.
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "ShipEditor")
-	AActor * discreteElementEditorActor = nullptr;
+	AActor * editorComponentActor = nullptr;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "ShipEditor")
 	AActor * exemplarActor = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "ShipEditor")
+	FSoftObjectPath softExemplarActor;
 
 	UPROPERTY( EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor" )
 	URegionGrowing_GenerativeBrushTool * generativeBrushTool;
@@ -91,10 +93,13 @@ public:
 	UStringGeneratorTool * stringGeneratorTool;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor")
-	UCollagenGeneratorTool * collagenGeneratorTool;
+	UFilamentGeneratorTool * filamentGeneratorTool;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor")
 	USwarmGeneratorTool * swarmGeneratorTool;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor")
+	UMolecularLegoGeneratorTool * molecularLegoTool;
 
 	UPROPERTY( EditAnywhere, BlueprintReadOnly, Instanced, Category = "ShipEditor" )
 	USelectionTool * selectionTool;
@@ -176,7 +181,6 @@ protected:
 	FGraphSnapshot _snapshot;
 
 protected:
-	URegionGrowingComponent * regionGrowingComponent;
 	UFlexSimulationComponent * flexComponent;
 	FFlexSimulation * flexSimulation;
 	UDiscreteElementEditorComponent * editorComponent;
@@ -223,85 +227,53 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftStart();
-	
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftEnd();
-	
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManLeftUpdate();
 
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightStart();
-	
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightEnd();
-	
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
 	void spiderManRightUpdate();
 
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void takeGraphicalSnapshotAndHighResShot();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void takeHighReshShot();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void snapshotElementDomain();
-
-	void leftController_touchStart();
-	void leftController_touchUpdated();
-	void leftController_touchEnd();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void leftController_upFace_released();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void leftController_downFace_released();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void leftController_leftFace_released();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void leftController_rightFace_released();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_touchStart();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_touchUpdated();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_touchEnd();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceUp_pressed();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceUp_released();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceDown_pressed();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceDown_released();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceLeft_pressed();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceLeft_released();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceRight_pressed();
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_faceRight_released();
-
-	UFUNCTION(BlueprintCallable, Category = LifeBrush)
-	void rightController_shoulder_released();
-
 protected:
-	FVector2D _getLeftTouchPoint();
-	FVector2D _getRightTouchPoint();
-
 	void _initSimulation_oneTime();
-	void _initSimulationBounds();
 	void _initTools();
 
 	FString _actorLabelByDate(FString baseName);
 
 
+	void takeGraphicalSnapshotAndHighResShot();
+	void takeHighReshShot();
+	void snapshotElementDomain();
+
+	void leftController_touchStart();
+	void leftController_touchUpdated();
+	void leftController_touchEnd();
+	FVector2D _getLeftTouchPoint();
+
+	void leftController_upFace();
+	void leftController_downFace();
+	void leftController_leftFace();
+	void leftController_rightFace();
+
+	void rightController_touchStart();
+	void rightController_touchUpdated();
+	void rightController_touchEnd();
+	FVector2D _getRightTouchPoint();
+
+	void rightController_faceUp_pressed();
+	void rightController_faceUp_released();
+
+	void rightController_faceDown_pressed();
+	void rightController_faceDown_released();
+
+	void rightController_faceLeft_pressed();
+	void rightController_faceLeft_released();
+
+	void rightController_faceRight_pressed();
+	void rightController_faceRight_released();
+
+	void rightController_shoulder_released();
 
 	void _startSimulation();
 	void _endSimulation();

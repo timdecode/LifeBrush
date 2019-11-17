@@ -27,6 +27,7 @@
 #include "LifeBrush.h"
 
 #include "AABB.h"
+#include "unrealAABB.h"
 
 namespace aabb
 {

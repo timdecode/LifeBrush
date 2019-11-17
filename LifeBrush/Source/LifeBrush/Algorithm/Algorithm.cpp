@@ -347,25 +347,36 @@ void Algorithm::_initializeOutput(PositionFace& position, AABB& limits, Algorith
 		if (_overlaps(p_, element.element.radius, element.element.generationParameters))
 			continue;
 
-		FGraphNodeHandle addedHandle = _copyExemplarToOutput(elementHandle, _exemplar.graph, p_, exampleSelection);
-
-		ElementTuple added(addedHandle, graph());
-
-		added.element.surfaceIndex = p.surfaceIndex;
+		FQuat q_ = FQuat::Identity;
 
 		if (!forceRotation && (generationMode == EGenerationMode::SurfaceProjection || generationMode == EGenerationMode::SurfaceWalking || generationMode == EGenerationMode::SurfacePainting))
 		{
 			auto rotationAndNormal = _context.meshInterface->rotationAndNormalAtIndex(p.surfaceIndex);
 
+
 			FQuat quat = rotationAndNormal.first;
 			FQuat rotation = quat * element.node.orientation;
 
-			added.node.orientation = rotation;
+			//added.node.orientation = rotation;
+
+			q_ = rotation;
 		}
 		else if (forceRotation)
 		{
-			added.node.orientation = forcedRotation;
+			//added.node.orientation = forcedRotation;
+
+			q_ = forcedRotation;
 		}
+		else
+			q_ = element.node.orientation;
+
+		FGraphNodeHandle addedHandle = _copyExemplarToOutput(elementHandle, _exemplar.graph, p_, exampleSelection, q_);
+
+		ElementTuple added(addedHandle, graph());
+
+		added.element.surfaceIndex = p.surfaceIndex;
+
+
 
 		result.generated.push_back(addedHandle);
 	}
@@ -373,41 +384,70 @@ void Algorithm::_initializeOutput(PositionFace& position, AABB& limits, Algorith
 	_context.domain.rebalance();
 }
 
-FGraphNodeHandle Algorithm::_copyExemplarToOutput(FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection)
+FGraphNodeHandle Algorithm::_copyExemplarToOutput(FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection, FQuat rotation)
 {
-	FMLAggregateNO * aggregate = sourceGraph.componentPtr<FMLAggregateNO>(sourceNodeHandle);
+	FGraph& theGraph = _context.graph();
 
-	if (aggregate)
-	{
-		TArray<FGraphNodeHandle> aggregateNodes;
-		TArray<FGraphEdgeHandle> aggregateEdges;
+	FGraphNodeHandle newNodeHandle = FGraphCopyContext::copyAggregate(sourceNodeHandle, sourceGraph, theGraph, unreal(position), rotation);
 
-		aggregate->edgesAndNodesInAggregate(sourceGraph, aggregateNodes, aggregateEdges);
+	FGraphNode& newNode = theGraph.node(newNodeHandle);
 
-		auto edgesToCopy = sourceGraph.edgesBetweenNodes(aggregateNodes);
+	if( !newNode.hasComponent<FElementObject>() )	
+		newNode.addComponent<FElementObject>(theGraph);
 
-		const FVector translation = unreal(position) - sourceGraph.node(sourceNodeHandle).position;
-		const FTransform transform(translation);
+	_horizon.insert(newNodeHandle);
 
-		auto result = FGraphCopyContext::copySubgraph(sourceGraph, _context.graph(), aggregateNodes, edgesToCopy, transform);
+	_context.domain.didInsert(newNodeHandle);
 
-		return result.duplicatedNodes[0];
-	}
-	else
-	{
-		FElementObject& sourceElement = sourceGraph.component<FElementObject>(sourceNodeHandle);
+	auto& sourceExample = _sourceExampleMap.sourceExample(newNodeHandle);
 
-		auto newNodeHandle = _context.domain.insert(sourceElement, sourceGraph, unreal(position));
+	sourceExample.element = sourceNodeHandle;
+	sourceExample.weight = 1.0f;
 
-		_horizon.insert(newNodeHandle);
+	return newNodeHandle;
 
-		auto& sourceExample = _sourceExampleMap.sourceExample(newNodeHandle);
+	//FMLAggregateNO * aggregate = sourceGraph.componentPtr<FMLAggregateNO>(sourceNodeHandle);
 
-		sourceExample.element = sourceNodeHandle;
-		sourceExample.weight = 1.0f;
+	//if (aggregate)
+	//{
+	//	TArray<FGraphNodeHandle> aggregateNodes;
+	//	TArray<FGraphEdgeHandle> aggregateEdges;
 
-		return newNodeHandle;
-	}
+	//	aggregate->edgesAndNodesInAggregate(sourceGraph, aggregateNodes, aggregateEdges);
+
+	//	auto edgesToCopy = sourceGraph.edgesBetweenNodes(aggregateNodes);
+
+	//	FGraphNode& sourceNode = sourceGraph.node(sourceNodeHandle);
+
+	//	const FVector translation = unreal(position) - sourceNode.position;
+	//	const FQuat rotation_fixed = rotation; // align the vector (otherwise unreal crashes on simd shit)
+	//	const FQuat deltaRotation = rotation_fixed * sourceNode.orientation.Inverse();
+
+	//	// Yea this is ugly
+	//	const FTransform transform = FTransform(-sourceNode.position) * FTransform(deltaRotation) * FTransform(sourceNode.position) * FTransform(translation);
+
+
+	//	auto result = FGraphCopyContext::copySubgraph(sourceGraph, _context.graph(), aggregateNodes, edgesToCopy, transform);
+
+	//	return result.duplicatedNodes[0];
+	//}
+	//else
+	//{
+	//	FElementObject& sourceElement = sourceGraph.component<FElementObject>(sourceNodeHandle);
+
+	//	auto newNodeHandle = _context.domain.insert(sourceElement, sourceGraph, unreal(position));
+
+	//	_horizon.insert(newNodeHandle);
+
+	//	_context.graph().node(newNodeHandle).orientation = rotation;
+
+	//	auto& sourceExample = _sourceExampleMap.sourceExample(newNodeHandle);
+
+	//	sourceExample.element = sourceNodeHandle;
+	//	sourceExample.weight = 1.0f;
+
+	//	return newNodeHandle;
+	//}
 }
 
 void Algorithm::clearAlongPath(std::vector<PositionRadiusFace>& path)
@@ -894,6 +934,7 @@ std::vector<FGraphNodeHandle> Algorithm::_seeds(const std::set<FGraphNodeHandle>
 		available.insert(e);
 	}
     
+	if(elementHandle)
 	{
 		int k = graph().component<FElementObject>(elementHandle).generationParameters.kNearest;
 
@@ -1641,6 +1682,9 @@ std::vector<FGraphNodeHandle> Algorithm::_fastFilterGenerativeExemplars(FGraphNo
 {
     std::vector<FGraphNodeHandle> result;
 
+	if (!_sourceExampleMap.contains(seedHandle))
+		return result;
+
 	ElementTuple seed = outputTuple(seedHandle);
 
     // find the nearby freespace points
@@ -1654,6 +1698,8 @@ std::vector<FGraphNodeHandle> Algorithm::_fastFilterGenerativeExemplars(FGraphNo
 		// remap the free points
 		for( Eigen::Vector3f& point : freePoints )
 			point = mapping->toExemplar( point );
+
+
 
 		auto& sourceExample = _sourceExampleMap.sourceExample( seedHandle );
 
@@ -1776,6 +1822,8 @@ std::map<FGraphNodeHandle, int> Algorithm::_histogram(FGraphNodeHandle element, 
     
     for( FGraphNodeHandle e_ : neighbours )
     {
+		if( !_sourceExampleMap.contains(e_ ) ) continue;
+
 		auto& sourceExample = _sourceExampleMap.sourceExample( e_ );
 
 		if(sourceExample.element)
@@ -2619,6 +2667,10 @@ Algorithm::ExampleSelectionPtr Algorithm::getExampleSelection()
 }
 
 
+std::vector<FGraphNodeHandle> Algorithm::getExampleSelectionVector()
+{
+	return std::vector<FGraphNodeHandle>(_defaultSelection.selection.begin(), _defaultSelection.selection.end());
+}
 
 void Algorithm::updateExampleSelection( std::vector<FGraphNodeHandle> selection, float weight /*= 1.0f */ )
 {

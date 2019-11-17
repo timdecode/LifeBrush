@@ -1,4 +1,4 @@
-// Copyright 2019, Timothy Davison. All rights reserved.
+// Copyright 2016, Timothy Davison. All rights reserved.
 
 #include "LifeBrush.h"
 
@@ -10,11 +10,14 @@
 
 #include "Tools/RegionGrowingGeneratorTool.h"
 #include "Tools/StringGeneratorTool.h"
+#include "Tools/FilamentGeneratorTool.h"
 #include "Tools/SelectionTool.h"
 #include "Tools/RegionGrowingTool.h"
 #include "Tools/DigTool.h"
 #include "Tools/MeshCollectionTool.h"
 #include "Tools/ExemplarInspectorTool.h"
+#include "Tools/SwarmGeneratorTool.h"
+#include "Tools/MolecularLegoGeneratorTool.h"
 
 #include "Visualization/EventVisualizationTool.h"
 
@@ -69,8 +72,9 @@ AVRSketchyPawn::AVRSketchyPawn()
 	generativeBrushTool = CreateDefaultSubobject<URegionGrowing_GenerativeBrushTool>( TEXT( "RegionGrowingGenerativeBrushTool" ) );
 	regionGrowingElementGeneratorTool = CreateDefaultSubobject<URegionGrowingGeneratorTool>(TEXT("RegionGrowingElementGenerator_BrushTool"));
 	stringGeneratorTool = CreateDefaultSubobject<UStringGeneratorTool>(TEXT("StringGeneratorTool"));
-	collagenGeneratorTool = CreateDefaultSubobject<UCollagenGeneratorTool>(TEXT("CollagenGeneratorTool"));
+	filamentGeneratorTool = CreateDefaultSubobject<UFilamentGeneratorTool>(TEXT("FilamentGeneratorTool"));
 	swarmGeneratorTool = CreateDefaultSubobject<USwarmGeneratorTool>(TEXT("SwarmGeneratorTool"));
+	molecularLegoTool = CreateDefaultSubobject<UMolecularLegoGeneratorTool>(TEXT("MolecularLegoGeneratorTool"));
 	selectionTool = CreateDefaultSubobject<USelectionTool>( TEXT( "SelectionTool" ) );
 	digTool = CreateDefaultSubobject<UDigTool>( TEXT( "DigTool" ) );
 	meshCollectionTool = CreateDefaultSubobject<UMeshCollectionTool>( TEXT("MeshCollectionTool") );
@@ -87,17 +91,24 @@ void AVRSketchyPawn::PreInitializeComponents()
 {
 	Super::PreInitializeComponents();
 
-	if (regionGrowingActor)
-		regionGrowingComponent = regionGrowingActor->FindComponentByClass<URegionGrowingComponent>();
-
-	if (discreteElementEditorActor)
+	if (!exemplarActor)
 	{
-		editorComponent = discreteElementEditorActor->FindComponentByClass<UDiscreteElementEditorComponent>();
-		editorComponent->camera = camera;
+		if (softExemplarActor.IsValid() && softExemplarActor.TryLoad())
+		{
+			exemplarActor = Cast<AActor>(softExemplarActor.ResolveObject());
+		}
+	}
+
+	if (editorComponentActor)
+	{
+		editorComponent = editorComponentActor->FindComponentByClass<UDiscreteElementEditorComponent>();
+
+		// automatically set the editor components simulationActor
+		editorComponent->simulationActor = flexSimulationActor;
+		editorComponent->exemplarActor = exemplarActor;
 	}
 
 	// tick after the RGC
-	AddTickPrerequisiteComponent(regionGrowingComponent);
 	AddTickPrerequisiteComponent(editorComponent);
 	AddTickPrerequisiteComponent(flexComponent);
 }
@@ -111,7 +122,11 @@ void AVRSketchyPawn::BeginPlay()
 	{
 		flexComponent = flexSimulationActor->FindComponentByClass<UFlexSimulationComponent>();
 	
-		if( flexComponent ) flexSimulation = flexComponent->flexSimulation();
+		if (flexComponent)
+		{
+			flexSimulation = flexComponent->flexSimulation();
+			flexSimulation->setCamera(camera);
+		}
 	}
 
 	_initTools();
@@ -157,15 +172,51 @@ void AVRSketchyPawn::SetupPlayerInputComponent(class UInputComponent* InputCompo
 {
 	Super::SetupPlayerInputComponent(InputComponent);
 
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton1, IE_Released, this, &AVRSketchyPawn::leftController_upFace );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton3, IE_Released, this, &AVRSketchyPawn::leftController_downFace );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton4, IE_Released, this, &AVRSketchyPawn::leftController_leftFace );
+	InputComponent->BindKey( EKeys::MotionController_Left_FaceButton2, IE_Released, this, &AVRSketchyPawn::leftController_rightFace );
+
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton1, IE_Released, this, &AVRSketchyPawn::rightController_faceUp_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton3, IE_Released, this, &AVRSketchyPawn::rightController_faceDown_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton4, IE_Released, this, &AVRSketchyPawn::rightController_faceLeft_released );
+	InputComponent->BindKey( EKeys::MotionController_Right_FaceButton2, IE_Released, this, &AVRSketchyPawn::rightController_faceRight_released );
+
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton1, IE_Pressed, this, &AVRSketchyPawn::rightController_faceUp_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton3, IE_Pressed, this, &AVRSketchyPawn::rightController_faceDown_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton4, IE_Pressed, this, &AVRSketchyPawn::rightController_faceLeft_pressed);
+	InputComponent->BindKey(EKeys::MotionController_Right_FaceButton2, IE_Pressed, this, &AVRSketchyPawn::rightController_faceRight_pressed);
+
+	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Pressed, this, &AVRSketchyPawn::leftController_touchStart );
+	InputComponent->BindKey( EKeys::Steam_Touch_0, IE_Released, this, &AVRSketchyPawn::leftController_touchEnd );
+
+	InputComponent->BindKey( EKeys::Steam_Touch_1, IE_Pressed, this, &AVRSketchyPawn::rightController_touchStart );
+	InputComponent->BindKey( EKeys::Steam_Touch_1, IE_Released, this, &AVRSketchyPawn::rightController_touchEnd );
+
+	InputComponent->BindAxisKey( EKeys::MotionController_Left_Thumbstick_X );
+	InputComponent->BindAxisKey( EKeys::MotionController_Left_Thumbstick_Y );
+
+	InputComponent->BindAxisKey( EKeys::MotionController_Right_Thumbstick_X );
+	InputComponent->BindAxisKey( EKeys::MotionController_Right_Thumbstick_Y );
+
+	InputComponent->BindAxisKey( EKeys::MotionController_Left_TriggerAxis, this, &AVRSketchyPawn::leftTrigger );
+	InputComponent->BindAxisKey( EKeys::MotionController_Right_TriggerAxis, this, &AVRSketchyPawn::rightTrigger );
+
+	InputComponent->BindKey( EKeys::MotionController_Left_Grip1, IE_Pressed, this, &AVRSketchyPawn::spiderManLeftStart );
+	InputComponent->BindKey( EKeys::MotionController_Left_Grip1, IE_Released, this, &AVRSketchyPawn::spiderManLeftEnd );
+
+	InputComponent->BindKey( EKeys::MotionController_Right_Grip1, IE_Pressed, this, &AVRSketchyPawn::spiderManRightStart );
+	InputComponent->BindKey( EKeys::MotionController_Right_Grip1, IE_Released, this, &AVRSketchyPawn::spiderManRightEnd );
+
+	//InputComponent->BindKey( EKeys::MotionController_Left_Shoulder, IE_Released, this, &AVRSketchyPawn::takeGraphicalSnapshotAndHighResShot );
+	InputComponent->BindKey( EKeys::MotionController_Right_Shoulder, IE_Released, this, &AVRSketchyPawn::rightController_shoulder_released );
 }
 
 
 
 void AVRSketchyPawn::_initTools()
 {
-	auto regionGrowingRoot = discreteElementEditorActor ? 
-		discreteElementEditorActor->GetRootComponent() :
-		regionGrowingActor->GetRootComponent();
+	auto regionGrowingRoot = flexSimulationActor ? flexSimulationActor->GetRootComponent() : nullptr;
 
 	// set the tool widgets
 	generativeBrushTool->widgetComponent = rightPadWidget;
@@ -176,9 +227,6 @@ void AVRSketchyPawn::_initTools()
 
 	stringGeneratorTool->widgetComponent = rightPadWidget;
 	stringGeneratorTool->selectionPointWidgetComponent = rightSelectionPointWidget;
-
-	collagenGeneratorTool->widgetComponent = rightPadWidget;
-	collagenGeneratorTool->selectionPointWidgetComponent = rightSelectionPointWidget;
 
 	swarmGeneratorTool->widgetComponent = rightPadWidget;
 	swarmGeneratorTool->selectionPointWidgetComponent = rightSelectionPointWidget;
@@ -199,7 +247,6 @@ void AVRSketchyPawn::_initTools()
 	initProperties.rightSelectionPoint = rightInteractionPoint;
 	initProperties.toolDelegate = this;
 	initProperties.targetComponent = regionGrowingRoot;
-	initProperties.regionGrowingComponent = regionGrowingComponent;
 	initProperties.developerMode = developerMode;
 
 	generativeBrushTool->init(initProperties);
@@ -212,14 +259,18 @@ void AVRSketchyPawn::_initTools()
 	stringGeneratorTool->elementEditor = editorComponent;
 	stringGeneratorTool->init(initProperties);
 
-	collagenGeneratorTool->exemplarActor = exemplarActor;
-	collagenGeneratorTool->elementEditor = editorComponent;
-	collagenGeneratorTool->init(initProperties);
+	filamentGeneratorTool->exemplarActor = exemplarActor;
+	filamentGeneratorTool->elementEditor = editorComponent;
+	filamentGeneratorTool->init(initProperties);
 
 	swarmGeneratorTool->exemplarActor = exemplarActor;
 	swarmGeneratorTool->elementEditor = editorComponent;
 	swarmGeneratorTool->init(initProperties);
 	
+	molecularLegoTool->exemplarActor = exemplarActor;
+	molecularLegoTool->elementEditor = editorComponent;
+	molecularLegoTool->init(initProperties);
+
 	selectionTool->init(initProperties);
 
 	digTool->init(initProperties, camera);
@@ -281,9 +332,9 @@ void AVRSketchyPawn::snapshotElementDomain()
 #if WITH_EDITOR
 	UWorld * world = GEditor->EditorWorld;
 
-	ASimulationSnapshotActor * ismcSnapshot = regionGrowingComponent->createGraphicalSnapshotActor(world);
+	ASimulationSnapshotActor * ismcSnapshot = flexComponent->createGraphicalSnapshotActor(world);
 
-	FString baseName = regionGrowingComponent->GetOwner()->GetName() + "_elementSnapshot_";
+	FString baseName = flexSimulationActor->GetOwner()->GetName() + "_elementSnapshot_";
 
 	FString name = _actorLabelByDate(baseName);
 
@@ -316,10 +367,10 @@ void AVRSketchyPawn::snapshotSimulationStateToEditor()
 
 void AVRSketchyPawn::snapshotMeshInterfaceRuntimeMeshComponentToActor(AActor* actor)
 {
-	if (!regionGrowingComponent)
+	if (!flexComponent)
 		return;
 
-	auto rmc = regionGrowingComponent->meshInterfaceRuntimeMesh;
+	auto rmc = flexComponent->meshInterfaceRMC();
 
 	Utility::duplicateRuntimeMeshComponentToActor(rmc, actor);
 }
@@ -421,7 +472,7 @@ void AVRSketchyPawn::leftController_touchEnd()
 
 // ------------------------------------------------------------
 
-void AVRSketchyPawn::leftController_upFace_released()
+void AVRSketchyPawn::leftController_upFace()
 {
 	if (!developerMode)
 		return;
@@ -429,7 +480,7 @@ void AVRSketchyPawn::leftController_upFace_released()
 	restoreSimulation();
 }
 
-void AVRSketchyPawn::leftController_downFace_released()
+void AVRSketchyPawn::leftController_downFace()
 {
 	if (!developerMode)
 		return;
@@ -437,12 +488,12 @@ void AVRSketchyPawn::leftController_downFace_released()
 	snapshotSimulation();
 }
 
-void AVRSketchyPawn::leftController_leftFace_released()
+void AVRSketchyPawn::leftController_leftFace()
 {
 
 }
 
-void AVRSketchyPawn::leftController_rightFace_released()
+void AVRSketchyPawn::leftController_rightFace()
 {	
 
 }
@@ -538,40 +589,30 @@ void AVRSketchyPawn::_initSimulation_oneTime()
 
 	if (flexComponent && editorComponent)
 	{
-		_initSimulationBounds();
-
 		// it's already in world space
 		FTransform meshInterfaceToWorld = FTransform::Identity;
 
-		flexComponent->init(editorComponent->context->meshInterface, meshInterfaceToWorld, camera);
+		flexComponent->init(meshInterfaceToWorld, camera);
 	}
 
 	_didInitSimulation = true;
 }
 
-void AVRSketchyPawn::_initSimulationBounds()
-{
-	FTransform transform = flexSimulationActor->GetRootComponent()->GetComponentTransform();
-
-	FBox limits = editorComponent->context->limits;
-
-	limits.Min = transform.InverseTransformPosition(limits.Min);
-	limits.Max = transform.InverseTransformPosition(limits.Max);
-
-	flexSimulation->setInstanceManagerBounds(limits);
-}
 
 void AVRSketchyPawn::_startSimulation()
 {
 	if (!flexSimulation || !editorComponent)
 		return;
 
-	editorComponent->stop();
+	flexSimulation->simulationManager.attachAllSimulations();
 
 	_initSimulation_oneTime();
 
-	auto exportedDomain = editorComponent->exportOutputDomain();
-	flexSimulation->loadExportedDomainInfo(exportedDomain);
+	// map
+	//auto exportedDomain = editorComponent->exportOutputDomain();
+	//flexSimulation->loadExportedDomainInfo(exportedDomain);
+
+	flexSimulation->updateFlexState();
 
 	flexSimulation->begin();
 
@@ -584,13 +625,15 @@ void AVRSketchyPawn::_endSimulation()
 	if(!flexSimulation || !editorComponent)
 		return;
 
-	auto elementDomain = flexSimulation->exportElementDomain();
-
-	editorComponent->loadElementDomain(elementDomain);
-	editorComponent->start();
+	// map
+	//auto elementDomain = flexSimulation->exportElementDomain();
+	//editorComponent->loadElementDomain(elementDomain);
 
 	flexSimulation->pause();
-	flexSimulation->clear();
+
+	editorComponent->start();
+
+	// flexSimulation->clear();
 }
 
 void AVRSketchyPawn::leftTrigger( float value )
@@ -791,6 +834,8 @@ void AVRSketchyPawn::setSimulating( bool simulating )
 	if (simulating)
 	{
 		_initSimulation_oneTime();
+
+		flexSimulation->updateFlexState();
 		flexSimulation->play();
 	}
 	else

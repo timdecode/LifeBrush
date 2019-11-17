@@ -83,8 +83,12 @@ FMLAggregateNO* FMLAggregateNO::getAggregate(FGraph& graph, FGraphNodeHandle sub
 {
 	auto& node = graph.node(subNodeHandle);
 
-	if (node.hasComponent<FMLAggregateNO>())
-		return &node.component<FMLAggregateNO>(graph);
+	auto& aggregates = graph.componentStorage<FMLAggregateNO>();
+
+	if (FMLAggregateNO * no = aggregates.componentPtrForNode(subNodeHandle))
+	{
+		if (no->isValid()) return no;
+	}
 
 	for (auto ei : node.edges)
 	{
@@ -94,7 +98,10 @@ FMLAggregateNO* FMLAggregateNO::getAggregate(FGraph& graph, FGraphNodeHandle sub
 		{
 			FGraphEdge& edge = graph.edge(edgeHandle);
 
-			return &edge.other(subNodeHandle).node(graph).component<FMLAggregateNO>(graph);
+			if (FMLAggregateNO * no = aggregates.componentPtrForNode(edge.other(subNodeHandle)) )
+			{
+				if (no->isValid()) return no;
+			}
 		}
 	}
 

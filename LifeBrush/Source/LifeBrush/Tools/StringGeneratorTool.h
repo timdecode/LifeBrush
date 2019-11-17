@@ -8,7 +8,7 @@
 #include "RegionGrowingGeneratorTool.h"
 
 #include "ElementEditor/StringGenerator.h"
-#include "ElementEditor/CollagenGenerator.h"
+#include "ElementEditor/SwarmGenerator.h"
 
 #include "StringGeneratorTool.generated.h"
 
@@ -25,31 +25,6 @@ public:
 	void init(FRGC_UToolInitProperties& initProperties);
 };
 
-UCLASS(Blueprintable)
-class UCollagenGeneratorTool : public UGeneratorTool
-{
-	GENERATED_BODY()
-
-public:
-	virtual ~UCollagenGeneratorTool() {}
-
-	void init(FRGC_UToolInitProperties& initProperties);
-};
 
 
 
-
-UCLASS(Blueprintable)
-class USwarmGeneratorTool : public UGeneratorTool
-{
-	GENERATED_BODY()
-
-public:
-	virtual ~USwarmGeneratorTool() {}
-
-	void init(FRGC_UToolInitProperties& initProperties);
-
-	USwarmGenerator * generator();
-
-	virtual void faceUp_released(USceneComponent * interactionPoint /* = nullptr */) override;
-};

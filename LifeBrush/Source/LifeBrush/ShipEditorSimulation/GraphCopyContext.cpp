@@ -3,6 +3,8 @@
 #include "LifeBrush.h"
 
 #include "ShipEditorSimulation/MeshSimulation.h"
+#include "Simulation/Aggregates.h"
+
 #include "GraphCopyContext.h"
 
 void FGraphCopyContext::clear()
@@ -130,6 +132,51 @@ FGraphCopyContext FGraphCopyContext::copySubgraph(
 	targetGraph.endTransaction();
 
 	return context;
+}
+
+FGraphNodeHandle FGraphCopyContext::copyAggregate(FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph, FGraph& targetGraph, const FVector position, const FQuat rotation_in)
+{
+	FMLAggregateNO * aggregate = sourceGraph.componentPtr<FMLAggregateNO>(sourceNodeHandle);
+
+	FGraphNodeHandle result;
+
+	FGraphNode& sourceNode = sourceGraph.node(sourceNodeHandle);
+
+	const FVector translation = position - sourceNode.position;
+	const FQuat rotation_fixed = rotation_in; // align the vector (otherwise unreal crashes on simd shit)
+	const FQuat deltaRotation = rotation_fixed * sourceNode.orientation.Inverse();
+
+	// Yea this is ugly
+	const FTransform transform = FTransform(-sourceNode.position) * FTransform(deltaRotation) * FTransform(sourceNode.position) * FTransform(translation);
+
+
+	if (aggregate)
+	{
+		TArray<FGraphNodeHandle> aggregateNodes;
+		TArray<FGraphEdgeHandle> aggregateEdges;
+
+		aggregate->edgesAndNodesInAggregate(sourceGraph, aggregateNodes, aggregateEdges);
+
+		auto edgesToCopy = sourceGraph.edgesBetweenNodes(aggregateNodes);
+
+		auto copyResult = FGraphCopyContext::copySubgraph(sourceGraph, targetGraph, aggregateNodes, edgesToCopy, transform);
+
+		result = copyResult.duplicatedNodes[0];
+	}
+	else
+	{
+		TArray<FGraphNodeHandle> oneNode;
+		oneNode.Add(sourceNodeHandle);
+
+		TArray<FGraphEdgeHandle> noEdges;
+
+		FGraphCopyContext copyResult = FGraphCopyContext::copySubgraph(sourceGraph, targetGraph, oneNode, noEdges, transform);
+
+		// the first node in here is the duplicate of the one we passed in oneNode.
+		result = copyResult.duplicatedNodes[0];
+	}
+
+	return result;
 }
 
 void FGraphCopyContext::copyComponent(ComponentType componentType, FGraphNode& sourceNode, FGraphNode& targetNode, FGraph& sourceGraph, FGraph& targetGraph)

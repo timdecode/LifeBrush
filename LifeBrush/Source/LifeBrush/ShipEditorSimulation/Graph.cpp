@@ -455,10 +455,8 @@ void FGraph::removeConnection(FGraphEdgeHandle handle)
 		EdgeObjectType type = 0;
 		for (auto& storage : _edgeStorage)
 		{
-			if (!storage.contains(handle))
-				continue;
-
-			removeEdgeObject(handle, type);
+			if( storage.contains(handle) )
+				removeEdgeObject(handle, type);
 
 			type++;
 		}
@@ -497,6 +495,25 @@ TArray<FGraphEdgeHandle> FGraph::edgesBetweenNodes(TArray<FGraphNodeHandle>& nod
 	}
 
 	return edgeSet.Array();
+}
+
+TArray<FGraphEdgeHandle> FGraph::edgesBetweenNodes(FGraphNodeHandle a, FGraphNodeHandle b)
+{
+	TArray<FGraphEdgeHandle> result;
+
+	FGraphNode& node_a = node(a);
+
+	for (auto ei : node_a.edges)
+	{
+		FGraphEdgeHandle he(ei);
+
+		FGraphEdge e = edge(he);
+
+		if( e.other(a) == b ) 
+			result.Add(he);
+	}
+
+	return result;
 }
 
 FGraph& FGraph::operator=( const FGraph& other )
@@ -734,4 +751,6 @@ void FEdgeStorage::PostSerialize(const FArchive& Ar)
 
 	// hack for now
 	_objectIndexIsValid.Init(true, _size);
+
+	_validSize = _size;
 }

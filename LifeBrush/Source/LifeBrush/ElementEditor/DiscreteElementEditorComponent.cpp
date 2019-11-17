@@ -35,8 +35,6 @@ void UDiscreteElementEditorComponent::InitializeComponent()
 
 	generators.Remove(nullptr);
 
-	_initContextAndGraph();
-
 	if (!_didInit)
 		_init();
 }
@@ -44,26 +42,12 @@ void UDiscreteElementEditorComponent::InitializeComponent()
 void UDiscreteElementEditorComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	context->limits = limits;
-
-	// We can't init flex until after initialize component, other guys are going to set our camera.
-	// Hence this code doesn't go into _init().
-	_flexSimulation = std::make_unique<FFlexSimulation>(graph, *simulationManager, flexParams);
-	_flexSimulation->initSimulationManager(GetOwner());
-	_flexSimulation->initMeshInterface(context->meshInterface, FTransform::Identity, camera);
-	_flexSimulation->setInstanceManagerBounds(limits);
-
-	_flexSimulation->begin();
-	_flexSimulation->play();
 }
 
 void UDiscreteElementEditorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// in case we tick in the editor, we fire this off. it uses conditional initialization
-	_initContextAndGraph();
 
 	if (ThisTickFunction == &PrimaryComponentTick)
 		preTickPhysics(DeltaTime);
@@ -71,19 +55,8 @@ void UDiscreteElementEditorComponent::TickComponent(float DeltaTime, ELevelTick 
 		postTickPhysics(DeltaTime);
 }
 
-void UDiscreteElementEditorComponent::_initContextAndGraph()
-{
-	if (context)
-		return;
-
-	graph.init();
-
-	context = std::make_unique<SynthesisContext>(graph);
-}
-
 void UDiscreteElementEditorComponent::preTickPhysics(float DeltaTime)
 {
-	_updateLimits();
 
 #if WITH_EDITOR
 	// don't tick, in the editor, past this point
@@ -93,44 +66,27 @@ void UDiscreteElementEditorComponent::preTickPhysics(float DeltaTime)
 		return;
 #endif
 
-	if (_generator && !_paused)
+	if (!_generator || !flexSimulation() )
+		return;
+
+
+	// The generator wants a flex simulation wrapped around it.
+	// So, add its work to the tick-work queue and tick flex.
+	if (_generator->wantsFlex() && flexSimulation()->isPlaying())
 	{
-		// The generator wants a flex simulation wrapped around it.
-		// So, add its work to the tick-work queue and tick flex.
-		if (_generator->wantsFlex())
-		{
-			_flexSimulation->addTickWork([&, DeltaTime]() {
-				_generator->tick(DeltaTime);
-			});
-
-			IFlexGraphSimulation * flexTicker = Cast<IFlexGraphSimulation>(_generator);
-
-			if (flexTicker)
-			{
-				_flexSimulation->addFlexTickWork([&, DeltaTime, flexTicker](
-					float dt,
-					NvFlexVector<int>& neighbourIndices,
-					NvFlexVector<int>& neighbourCounts,
-					NvFlexVector<int>& apiToInternal,
-					NvFlexVector<int>& internalToAPI,
-					int maxParticles)
-				{
-					flexTicker->flexTick(dt,
-						neighbourIndices,
-						neighbourCounts,
-						apiToInternal,
-						internalToAPI,
-						maxParticles);
-				});
-			}
-
-			_flexSimulation->tick(DeltaTime);
-		}
-		// This generator doesn't need our flex simulation
-		else
-		{
+		flexSimulation()->addTickWork([&, DeltaTime]() {
 			_generator->tick(DeltaTime);
-		}
+		});
+	}
+	// This generator doesn't need our flex simulation
+	else
+	{
+		_generator->tick(DeltaTime);
+	}
+
+	if (!flexSimulation()->isPlaying())
+	{
+		_generator->tickPaused(DeltaTime);
 	}
 }
 
@@ -147,17 +103,17 @@ void UDiscreteElementEditorComponent::setCurrentGenerator(UElementGenerator * ge
 	if (_generator)
 	{
 		_generator->detach();
-		_generator->flexSimulation = nullptr;
 	}
 
 	_generator = generator;
 
 	if (_generator)
 	{
-		if (_generator->wantsFlex())
-			_generator->flexSimulation = _flexSimulation.get();
+		_generator->flexSimulation = flexSimulation();
+		_generator->flexSimulationComponent = flexSimulationComponent();
+		_generator->elementEditorComponent = this;
 
-		_generator->attach(context.get(), simulationManager);
+		_generator->attach(context(), &flexSimulation()->simulationManager);
 
 		if (!_paused)
 			_generator->start();
@@ -169,10 +125,35 @@ UElementGenerator* UDiscreteElementEditorComponent::currentGenerator()
 	return _generator;
 }
 
-AActor * UDiscreteElementEditorComponent::exemplarActor()
+UFlexSimulationComponent * UDiscreteElementEditorComponent::flexSimulationComponent()
 {
-	if (URegionGrowingGenerator * rgc = generator<URegionGrowingGenerator>())
-		return rgc->exemplar;
+	AActor * host = simulationActor ? simulationActor : GetOwner();
+
+	UFlexSimulationComponent * flexComponent = host->FindComponentByClass<UFlexSimulationComponent>();
+
+	return flexComponent;
+}
+
+FFlexSimulation * UDiscreteElementEditorComponent::flexSimulation()
+{
+	AActor * host = simulationActor ? simulationActor : GetOwner();
+
+	UFlexSimulationComponent * flexComponent = host->FindComponentByClass<UFlexSimulationComponent>();
+
+	if (flexComponent)
+		return flexComponent->flexSimulation();
+	else
+		return nullptr;
+}
+
+SynthesisContext * UDiscreteElementEditorComponent::context()
+{
+	AActor * host = simulationActor ? simulationActor : GetOwner();
+
+	UFlexSimulationComponent * flexComponent = host->FindComponentByClass<UFlexSimulationComponent>();
+
+	if (flexComponent)
+		return flexComponent->context();
 	else
 		return nullptr;
 }
@@ -192,7 +173,7 @@ void UDiscreteElementEditorComponent::start()
 	if (_generator)
 		_generator->start();
 
-	_flexSimulation->begin();
+	flexSimulation()->begin();
 }
 
 OutputDomainExport UDiscreteElementEditorComponent::exportOutputDomain()
@@ -201,7 +182,7 @@ OutputDomainExport UDiscreteElementEditorComponent::exportOutputDomain()
 
 	FTransform toWorld = GetOwner()->GetRootComponent()->GetComponentTransform();
 
-	result.read(graph);
+	//result.read(graph);
 
 	// transform to world space
 
@@ -215,7 +196,7 @@ OutputDomainExport UDiscreteElementEditorComponent::exportOutputDomain()
 		node.scale = toWorld.GetScale3D().X * node.scale;
 	}
 
-	result.meshInterface = context->meshInterface;
+	result.meshInterface = context()->meshInterface;
 
 	return result;
 }
@@ -227,7 +208,7 @@ void UDiscreteElementEditorComponent::loadElementDomain(FGraphSnapshot& toLoad)
 	if (cachcedGenerator)
 		setCurrentGenerator(nullptr);
 
-	toLoad.restore(graph);
+	//toLoad.restore(graph);
 
 	if (cachcedGenerator)
 		setCurrentGenerator(cachcedGenerator);
@@ -236,18 +217,93 @@ void UDiscreteElementEditorComponent::loadElementDomain(FGraphSnapshot& toLoad)
 
 void UDiscreteElementEditorComponent::_init()
 {
-	if (!simulationManager)
-		return;
-		
-	context->meshInterface = std::make_shared<tcodsMeshInterface>();
+	if (!flexSimulation()) return;
 
-	context->limits = limits;
+	_autoInstantiateGenerators();
 
-	simulationManager->camera = camera;
-	simulationManager->init(graph, *GetOwner(), false);
+	for (auto gen : generators)
+	{
+		gen->elementEditorComponent = this;
+		gen->flexSimulation = flexSimulation();
+		gen->flexSimulationComponent = flexSimulationComponent();
+		gen->exemplarActor = exemplarActor;
+	}
+
+	TMap<UClass*, UElementGenerator*> structToGenerator;
+
+	for (auto gen : generators)
+	{
+		auto theClass = gen->GetClass();
+
+		structToGenerator.Add(theClass, gen);
+	}
+
+	TSet<UElementGenerator*> initialized;
+
+	for (auto gen : generators)
+	{
+		_initDependencies(gen, initialized, structToGenerator);
+	}
+
 
 	_didInit = true;
 }
+
+
+void UDiscreteElementEditorComponent::_autoInstantiateGenerators()
+{
+	// nuke classes that might not be there anymore (for example after code changes)
+	generators.Remove(nullptr);
+
+	for (TObjectIterator<UClass> it; it; ++it)
+	{
+		if (!it->IsChildOf(UElementGenerator::StaticClass()) || *it == UElementGenerator::StaticClass())
+			continue;
+
+		_registerGenerator(*it);
+	}
+}
+
+UElementGenerator * UDiscreteElementEditorComponent::_registerGenerator(TSubclassOf<UElementGenerator> generatorClass)
+{
+	// see if we already have the generator
+	for (auto generator : generators)
+	{
+		if (generator->GetClass() == generatorClass)
+			return generator;
+	}
+
+	// create a new one
+	UElementGenerator * generator = NewObject<UElementGenerator>(this, generatorClass);
+
+	generators.Add(generator);
+
+	return generator;
+}
+
+void UDiscreteElementEditorComponent::_initDependencies(
+	UElementGenerator* generator, 
+	TSet<UElementGenerator*>& initialized, 
+	TMap<UClass*, UElementGenerator*>& classToGenerator)
+{
+	if (initialized.Contains(generator))
+		return;
+
+	auto dependencies = generator->dependencies();
+
+	for (UClass * dependencyClass : dependencies)
+	{
+		auto dependency = classToGenerator.Find(dependencyClass);
+
+		checkf(dependency != nullptr, TEXT("We don't have this dependency registered."));
+
+		_initDependencies(*dependency, initialized, classToGenerator);
+	}
+
+	generator->init(context(), &flexSimulation()->simulationManager);
+	initialized.Add(generator);
+}
+
 
 
 void UDiscreteElementEditorComponent::RegisterComponentTickFunctions(bool bRegister)
@@ -281,64 +337,3 @@ void UDiscreteElementEditorComponent::RegisterComponentTickFunctions(bool bRegis
 
 }
 
-// ------------------------------------------------------------
-// Limits Drawing
-// ------------------------------------------------------------
-
-void UDiscreteElementEditorComponent::_updateLimits()
-{
-	if (!_limitsBoxComponent || drawLimits == false)
-		return;
-
-	FVector centre = _limitsBoxComponent->GetComponentLocation();
-	FVector extents = _limitsBoxComponent->GetScaledBoxExtent();
-
-	limits.Min = centre - extents;
-	limits.Max = centre + extents;
-}
-
-void UDiscreteElementEditorComponent::_updateDrawLimits()
-{
-	if (drawLimits)
-	{
-		_drawLimits();
-		_updateLimits();
-	}
-	else
-		_hideLimits();
-}
-
-void UDiscreteElementEditorComponent::_drawLimits()
-{
-	if (_limitsBoxComponent == nullptr)
-	{
-		_limitsBoxComponent = NewObject<UBoxComponent>(GetOwner());
-
-		AActor * actor = GetOwner();
-
-		USceneComponent * root = actor->GetRootComponent();
-
-		_limitsBoxComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		_limitsBoxComponent->SetCollisionProfileName(TEXT("NoCollision"));
-
-		_limitsBoxComponent->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
-		actor->AddInstanceComponent(_limitsBoxComponent);
-		_limitsBoxComponent->RegisterComponent();
-
-
-	}
-
-	if (!_limitsBoxComponent->IsVisible())
-		_limitsBoxComponent->SetVisibility(true);
-
-	_limitsBoxComponent->SetWorldScale3D(FVector(1.0f));
-	_limitsBoxComponent->SetWorldRotation(FQuat::Identity, false, nullptr, ETeleportType::TeleportPhysics);
-	_limitsBoxComponent->SetWorldLocation(limits.GetCenter());
-	_limitsBoxComponent->SetBoxExtent(limits.GetExtent());
-}
-
-void UDiscreteElementEditorComponent::_hideLimits()
-{
-	if (_limitsBoxComponent)
-		_limitsBoxComponent->SetVisibility(false);
-}

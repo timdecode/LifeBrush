@@ -149,7 +149,7 @@ private:
 	std::vector< std::unique_ptr<RoundRecord> > records;
 };
 
-class PatchRecordSummary : RecordSummary
+class PatchRecordSummary : public RecordSummary
 {
 public:
 	virtual ~PatchRecordSummary() {}

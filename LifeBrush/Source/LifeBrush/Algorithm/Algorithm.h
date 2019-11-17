@@ -446,6 +446,8 @@ public:
 
 	typedef struct ExampleSelection *ExampleSelectionPtr;
 	ExampleSelectionPtr getExampleSelection();
+	std::vector<FGraphNodeHandle> getExampleSelectionVector();
+
 	void updateExampleSelection( std::vector<FGraphNodeHandle> selection, float weight = 1.0f );
 
 	SimilarElement distance( FGraphNode& element, std::vector<FGraphNodeHandle>& elementNeighbours, FGraph& elementGraph,
@@ -764,6 +766,11 @@ protected:
 			}
 		};
 
+		bool contains(FGraphNodeHandle outputElement)
+		{
+			return _sourceExample.find(outputElement) != _sourceExample.end();
+		}
+
 		SourceExample& sourceExample(FGraphNodeHandle outputElement )
 		{
 			return _sourceExample[outputElement];
@@ -799,7 +806,7 @@ protected:
 	);
 
 protected:
-	FGraphNodeHandle _copyExemplarToOutput( FGraphNodeHandle sourceElement, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection );
+	FGraphNodeHandle _copyExemplarToOutput( FGraphNodeHandle sourceElement, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection, FQuat q = FQuat::Identity );
 
 
 protected:

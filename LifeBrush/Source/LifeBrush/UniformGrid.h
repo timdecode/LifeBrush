@@ -100,6 +100,14 @@ public:
 			samples = samples_in;
 	}
 
+	void init(FIntVector dimensions, FVector cellSize, FVector worldMin)
+	{
+		_setup(dimensions, cellSize, worldMin);
+
+		samples.clear();
+		samples.resize(dimensions.X * dimensions.Y * dimensions.Z);
+	}
+
 	// ---------------------------------------------------
 	// Sample Data Accessors
 	// ---------------------------------------------------
@@ -305,6 +313,7 @@ protected:
 
 public:
 	FIntVector dimensions() { return _paddedDimensions - (_padding + _padding); }
+	FIntVector paddedDimensions() { return _paddedDimensions; }
 
 	const FIntVector& padding() { return _padding; }
 
@@ -518,11 +527,11 @@ public:
 	}
 
 	// will also overwrite an existing chunk
-	PaddedUniformGrid<float>& _createChunkAt(FIntVector chunkIndex)
+	UniformGrid<float>& _createChunkAt(FIntVector chunkIndex)
 	{
-		_chunks.Add(chunkIndex, std::make_unique<PaddedUniformGrid<float>>());
+		_chunks.Add(chunkIndex, std::make_unique<UniformGrid<float>>());
 
-		PaddedUniformGrid<float>& chunk = *_chunks[chunkIndex].get();
+		UniformGrid<float>& chunk = *_chunks[chunkIndex].get();
 
 		FVector base;
 		for (int c = 0; c < 3; ++c)
@@ -532,67 +541,10 @@ public:
 
 		chunk.init(_chunkDimensions, _cellSize, base);
 
-
-		FIntVector chunkGridBase = gridIndexFromChunkIndex(chunkIndex);
-
-		// reordering array for the planes component indices
-		const FIntVector planeComponents[6] = {
-			FIntVector(0,1,2),
-			FIntVector(0,1,2),
-			FIntVector(1,0,2),
-			FIntVector(1,0,2),
-			FIntVector(2,0,1),
-			FIntVector(2,0,1)
-		};
-
-		// copy borders
-		// idea: the control what plane we are enumerate with the components array
-		//       the indices in the array are the components of the plane to access
-		int planeIndex = 0;
-		for (const FIntVector& componentVec = planeComponents[planeIndex]; planeIndex < 6; ++planeIndex)
-		{
-			FIntVector index;
-
-			const std::array<int, 2> planeBaseIndices = { {-1, _chunkDimensions[0]} };
-
-			// choose the plane base (offset along the normal)
-			for (int baseIndex : planeBaseIndices)
-			{
-				index[componentVec[0]] = baseIndex;
-
-				// use i, the plane index. if even, we'll do the negative normal, else the positive normal
-				FIntVector chunkOffset = FIntVector::ZeroValue;
-				chunkOffset[componentVec[0]] = planeIndex % 2 == 0 ? -1 : 1;
-
-				FIntVector neighbourChunkIndex = chunkIndex + chunkOffset;
-
-				// if we don't have a neighbour, there is nothing to copy!
-				if(!_chunks.Contains(neighbourChunkIndex)) continue;
-
-				FIntVector neighbourGridBase = gridIndexFromChunkIndex(neighbourChunkIndex);
-
-
-				PaddedUniformGrid<float>& neighbour = *_chunks[neighbourChunkIndex].get();
-
-				// rows of the plane (from the non-border values)
-				for (index[componentVec[1]] = 0; index[componentVec[1]] < _chunkDimensions[componentVec[1]]; index[componentVec[1]]++)
-				{
-					// columns of the plane
-					for (index[componentVec[2]] = 0; index[componentVec[2]] < _chunkDimensions[componentVec[2]]; index[componentVec[2]]++)
-					{
-
-						FIntVector neighbourIndex = chunkGridBase + index - neighbourGridBase;
-
-						chunk(index) = neighbour(neighbourIndex);
-					}
-				}
-			}
-		}
-
 		return chunk;
 	}
 
-	PaddedUniformGrid<ElementType>& chunkAtChunkIndex(FIntVector chunkIndex)
+	UniformGrid<ElementType>& chunkAtChunkIndex(FIntVector chunkIndex)
 	{
 		// do we need a new chunk?
 		auto found = _chunks.Find(chunkIndex);
@@ -610,7 +562,7 @@ public:
 		}
 	}
 
-	PaddedUniformGrid<ElementType>& chunkAtGridIndex(FIntVector gridIndex)
+	UniformGrid<ElementType>& chunkAtGridIndex(FIntVector gridIndex)
 	{
 		FIntVector ci = indexOfChunk(gridIndex);
 
@@ -657,7 +609,7 @@ public:
 		// found
 		else
 		{
-			PaddedUniformGrid<ElementType>& grid = *found->get();
+			UniformGrid<ElementType>& grid = *found->get();
 
 			FIntVector ci = indexOfCell(gridIndex);
 
@@ -678,52 +630,9 @@ public:
 		FIntVector cellIndex = indexOfCell(gridIndex);
 		FIntVector chunkIndex = indexOfChunk(gridIndex);
 
-		PaddedUniformGrid<ElementType>& grid = chunkAtChunkIndex(chunkIndex);
-
-		// luckily the border offset will only access up to 3 adjacent planes of the neighbouring grid
-		FIntVector borderOffsets[3] = { FIntVector::ZeroValue, FIntVector::ZeroValue, FIntVector::ZeroValue };
-
-		int n = 0;
-
-		const int padding = grid.padding()[0];
-
-		// if we are in a padded region, set a border offset
-		for (int c = 0; c < 3; ++c)
-		{
-			if (cellIndex[c] < padding)
-				borderOffsets[n++][c] = -1;
-			else if (cellIndex[c] >= _chunkDimensions[c] - padding)
-				borderOffsets[n++][c] = 1;
-		}
-
-		// we have to set this grid value before we set borders as there could be copying
-		// involved if we create a new grid as the result of a chunkAt call
+		UniformGrid<ElementType>& grid = chunkAtChunkIndex(chunkIndex);
 
 		grid(cellIndex) = value;
-
-
-		for (int j = 0; j < n; ++j)
-		{
-			FIntVector borderOffset = borderOffsets[j];
-
-
-			for (int p = 0; p < padding; p++)
-			{
-				FIntVector gi = gridIndex + borderOffset * float(p);
-
-				FIntVector chunki = indexOfChunk(gi);
-
-				PaddedUniformGrid<ElementType>& borderGrid = chunkAtGridIndex(gi);
-
-				FIntVector ciOffset = indexOfCellRelativeToChunk(gridIndex, chunki);
-
-				borderGrid(ciOffset) = value;
-			}
-
-
-		}
-
-
 	}
 
 	FIntVector inflateCellIndex(int i)
@@ -802,7 +711,7 @@ public:
 				for (chunkIndex.X = fromChunkIndex.X; chunkIndex.X <= toChunkIndex.X; chunkIndex.X++)
 				{
 					// we'll enumerate the relative indices inside of each chunk
-					PaddedUniformGrid<ElementType>& chunk = chunkAtChunkIndex(chunkIndex);
+					UniformGrid<ElementType>& chunk = chunkAtChunkIndex(chunkIndex);
 
 					FIntVector localFromCell;
 
@@ -854,5 +763,5 @@ protected:
   }
   return seed;
 }*/
-	TMap< FIntVector, std::unique_ptr<PaddedUniformGrid<float>> > _chunks;
+	TMap< FIntVector, std::unique_ptr<UniformGrid<float>> > _chunks;
 };

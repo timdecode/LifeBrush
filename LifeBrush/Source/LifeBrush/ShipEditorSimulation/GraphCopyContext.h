@@ -25,5 +25,15 @@ public:
 		TArray<FGraphEdgeHandle>& edges,
 		const FTransform localTransform);
 
+
+	static FGraphNodeHandle copyAggregate(
+		FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph,
+		FGraph& targetGraph,
+		const FVector position,
+		const FQuat rotation_in
+	);
+
 	static void copyComponent(ComponentType componentType, FGraphNode& sourceNode, FGraphNode& targetNode, FGraph& sourceGraph, FGraph& targetGraph);
+
+
 };

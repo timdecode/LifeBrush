@@ -6,10 +6,12 @@
 #include "ShipEditorSimulation/MeshSimulation.h"
 #include "Visualization/Timeline.h"
 #include "SimulationSnapshotActor.h"
+#include "MolecularLego/MolecularLego_Relaxation.h"
 
 #include "Utility.h"
 #include "SimulationSnapshotActor.h"
 #include "VolumeComponent.h"
+#include "ElementEditor/SwarmGenerator.h"
 
 
 
@@ -49,6 +51,43 @@ void UGraphComponent::initGraph()
 
 
 
+void UFlexSimulationComponent::playSimulation()
+{
+	if (!flexSimulation() || !_didInitOnce )
+		return;
+
+	flexSimulation()->updateFlexState();
+
+	flexSimulation()->begin();
+
+	flexSimulation()->play();
+}
+
+void UFlexSimulationComponent::pauseSimulation()
+{
+	if (!flexSimulation() )
+		return;
+
+	flexSimulation()->pause();
+}
+
+void UFlexSimulationComponent::initWithCameraComponent(UCameraComponent * camera)
+{
+	if (_didInitOnce)
+		return;
+
+	FTransform meshInterfaceToWorld = FTransform::Identity;
+
+	init(meshInterfaceToWorld, camera);
+
+	_didInitOnce = true;
+}
+
+bool UFlexSimulationComponent::isSimulationPlaying()
+{
+	return flexSimulation()->isPlaying();
+}
+
 UFlexSimulationComponent::UFlexSimulationComponent()
 {
 	bWantsInitializeComponent = true;
@@ -63,10 +102,18 @@ void UFlexSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick Ti
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	_initContext();
+
+	if (drawLimits && !_limitsBoxComponent )
+		_drawLimits();
+
+	_updateLimits();
+
 	if( !_flexSimulation)
 		initFlexSimulationObject();
 
-	_flexSimulation->tick(DeltaTime);
+	if( tickFlexSimulation )
+		_flexSimulation->tick(timeStep);
 }
 
 void UFlexSimulationComponent::BeginDestroy()
@@ -80,6 +127,18 @@ void UFlexSimulationComponent::BeginDestroy()
 void UFlexSimulationComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
+
+	if (!rulesActor)
+	{
+		if (softMLRulesActor.IsValid() && softMLRulesActor.TryLoad())
+			rulesActor = Cast<AActor>(softMLRulesActor.ResolveObject());
+	}
+
+	if (!swarmGrammarRulesActor)
+	{
+		if (softSwarmGrammarRulesActor.IsValid() && softSwarmGrammarRulesActor.TryLoad())
+			swarmGrammarRulesActor = Cast<AActor>(softSwarmGrammarRulesActor.ResolveObject());
+	}
 
 	initFlexSimulationObject();
 }
@@ -98,47 +157,94 @@ void UFlexSimulationComponent::initFlexSimulationObject()
 
 	initGraph();
 
+	_updateLimits();
+	_initContext();
+
 	_flexSimulation = std::make_unique<FFlexSimulation>(
 		graph,
 		*simulationManager,
 		flexParams
 	);
 
-	_readRules();
+	_readMLRules();
+	_readSGRules();
 
+	_flexSimulation->setInstanceManagerBounds(limits);
 	_flexSimulation->initSimulationManager(GetOwner());
 }
 
-void UFlexSimulationComponent::_readRules()
+void UFlexSimulationComponent::_initContext()
 {
-	//if (!rulesActor) return;
+	if (_context)
+		return;
 
-	//UMLElementSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<UMLElementSimulation>();
+	_context = std::make_unique<SynthesisContext>(graph);
+	_context->limits = limits;
+}
 
-	//ruleSimulation->ruleGraph.init();
-	//ruleSimulation->ruleGraph.clear();
+void UFlexSimulationComponent::_readMLRules()
+{
+	if (!rulesActor) return;
 
-	//TArray<USceneComponent*> childSceneComponents;
-	//rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
+	UMLElementSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<UMLElementSimulation>();
 
-	//for (USceneComponent * child : childSceneComponents)
-	//{
-	//	AMLRuleActor * ruleActor = Cast<AMLRuleActor>(child->GetOwner());
+	ruleSimulation->ruleGraph.init();
+	ruleSimulation->ruleGraph.clear();
 
-	//	if( !ruleActor ) continue;
+	TArray<USceneComponent*> childSceneComponents;
+	rulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
 
-	//	ruleActor->writeToGraph(ruleSimulation->ruleGraph);
-	//}
+	for (USceneComponent * child : childSceneComponents)
+	{
+		AMLRuleActor * ruleActor = Cast<AMLRuleActor>(child->GetOwner());
+
+		if( !ruleActor ) continue;
+
+		ruleActor->writeToGraph(ruleSimulation->ruleGraph);
+	}
+}
+
+void UFlexSimulationComponent::_readSGRules()
+{
+	if (!swarmGrammarRulesActor) return;
+
+	USwarmSimulation * ruleSimulation = _flexSimulation->simulationManager.registerSimulation<USwarmSimulation>();
+
+	ruleSimulation->ruleGraph.init();
+	ruleSimulation->ruleGraph.clear();
+
+	TArray<USceneComponent*> childSceneComponents;
+	swarmGrammarRulesActor->GetRootComponent()->GetChildrenComponents(false, childSceneComponents);
+
+	FGraph * ruleGraph = &ruleSimulation->ruleGraph;
+
+	for (USceneComponent * child : childSceneComponents)
+	{
+		AElementActor * ruleActor = Cast<AElementActor>(child->GetOwner());
+
+		if (!ruleActor) continue;
+
+		FGraphNodeHandle newHandle = FGraphNodeHandle(ruleGraph->addNode(
+			ruleActor->GetActorLocation(),
+			ruleActor->GetActorQuat(),
+			ruleActor->GetActorScale3D().GetMax()));
+
+		ruleGraph->node(newHandle).addComponent<FElementObject>(*ruleGraph);
+
+		ElementTuple tuple = ElementTuple(newHandle, *ruleGraph);
+
+		ruleActor->writeToElement(tuple, ruleSimulation->ruleGraph);
+	}
 }
 
 auto UFlexSimulationComponent::init(
-	std::shared_ptr<tcodsMeshInterface> meshInterface,
 	FTransform meshInterfaceToWorld,
 	UCameraComponent * camera) -> void
 {
-	_initMeshInterface(meshInterface);
+	_initMeshInterface(_flexSimulation->meshInterface());
 
-	_flexSimulation->initMeshInterface(meshInterface, meshInterfaceToWorld, camera);
+	simulationManager->camera = camera;
+	simulationManager->init(graph, *GetOwner(), true);
 }
 
 void UFlexSimulationComponent::_initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterfacePtr)
@@ -161,6 +267,8 @@ void UFlexSimulationComponent::_initMeshInterface(std::shared_ptr<tcodsMeshInter
 
 	meshInterface.setWorldLimits(_flexSimulation->instanceManagerBounds());
 	meshInterface.rebuild();
+
+	_context->meshInterface = meshInterfacePtr;
 }
 
 void UFlexSimulationComponent::_cacheMeshesForMeshInterface()
@@ -350,6 +458,82 @@ AActor * UFlexSimulationComponent::snapshotSimulationStateToWorld(UWorld * world
 	return newActor;
 }
 
+void UFlexSimulationComponent::_updateLimits()
+{
+	if (!_limitsBoxComponent || drawLimits == false)
+		return;
+
+	FTransform relativeTransform = _limitsBoxComponent->GetRelativeTransform();
+
+	FVector centre = relativeTransform.GetLocation();
+	FVector extents = _limitsBoxComponent->GetUnscaledBoxExtent();
+
+	extents *= relativeTransform.GetScale3D();
+
+	limits.Min = centre - extents;
+	limits.Max = centre + extents;
+}
+
+void UFlexSimulationComponent::_updateDrawLimits()
+{
+	if (drawLimits)
+	{
+		_drawLimits();
+		_updateLimits();
+	}
+	else
+		_hideLimits();
+}
+
+void UFlexSimulationComponent::_drawLimits()
+{
+	if (_limitsBoxComponent == nullptr)
+	{
+		_limitsBoxComponent = NewObject<UBoxComponent>(GetOwner());
+
+		AActor * actor = GetOwner();
+
+		USceneComponent * root = actor->GetRootComponent();
+
+		_limitsBoxComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		_limitsBoxComponent->SetCollisionProfileName(TEXT("NoCollision"));
+
+		_limitsBoxComponent->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
+		actor->AddInstanceComponent(_limitsBoxComponent);
+		_limitsBoxComponent->RegisterComponent();
+
+
+	}
+
+	if (!_limitsBoxComponent->IsVisible())
+		_limitsBoxComponent->SetVisibility(true);
+
+	_limitsBoxComponent->SetWorldScale3D(FVector(1.0f));
+	_limitsBoxComponent->SetWorldRotation(FQuat::Identity, false, nullptr, ETeleportType::TeleportPhysics);
+	_limitsBoxComponent->SetWorldLocation(limits.GetCenter());
+	_limitsBoxComponent->SetBoxExtent(limits.GetExtent());
+}
+
+void UFlexSimulationComponent::_hideLimits()
+{
+	if (_limitsBoxComponent)
+		_limitsBoxComponent->SetVisibility(false);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 auto FFlexSimulation::tick(float deltaT) -> void
 {
 	if (!_playing)
@@ -398,6 +582,17 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	_neighborsAPIToInternal->map();
 	_neighborsInternalToAPI->map();
 
+	bool debug_didInitSprings = false;
+	if (needsFirstInit)
+	{
+		// make sure we have created our buffers
+		_springs->init();
+
+		debug_didInitSprings = true;
+	}
+
+
+
 	// spawn
 	if (!_didSpawnShapesAndMesh)
 	{
@@ -411,12 +606,8 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	if (needsFirstInit)
 	{
 		_writeFlexState(particles, velocities, phases, active);
-
-		// make sure we have created our buffers
-		_springs->init();
+		_writeSpringState();
 	}
-
-	_loadSprings();
 
 	// update the push-interaction sphere
 	(FVector4&)shapePositions[0] = _spherePosition;
@@ -425,7 +616,6 @@ auto FFlexSimulation::tick(float deltaT) -> void
 
 	// Read Flex state into the simulation
 	_readFlexState(particles, velocities, phases);
-	_spawnDespawnSprings();
 
 	// cache this, as we need to access it after the step too (during which it can be modified)
 
@@ -438,7 +628,13 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	}
 	else
 	{
-		_rigids->mapRotationsTranslations();
+		if (_flexRigidsDirty)
+		{
+			_rigids->mapAll();
+			_loadRigids();
+		}
+		else
+			_rigids->mapRotationsTranslations();
 
 		_readRigidRotations();
 	}
@@ -478,6 +674,8 @@ auto FFlexSimulation::tick(float deltaT) -> void
 
 	// Write simulation state back into Flex
 	_writeFlexState(particles, velocities, phases, active);
+
+	_writeSpringState();
 
 
 
@@ -523,7 +721,9 @@ auto FFlexSimulation::tick(float deltaT) -> void
 	NvFlexSetActiveCount(_solver, nParticles);
 
 	if (!_springs->indices.empty())
-		NvFlexSetSprings(_solver, _springs->indices.buffer, _springs->lengths.buffer, _springs->coefficients.buffer, _springs->lengths.size());
+	{
+		NvFlexSetSprings(_solver, _springs->indices.buffer, _springs->lengths.buffer, _springs->coefficients.buffer, _springs->coefficients.size());
+	}
 
 	if (needsFirstInit || needsLoadRigids)
 	{
@@ -564,15 +764,15 @@ auto FFlexSimulation::tick(float deltaT) -> void
 		_neighborsInternalToAPI->buffer
 	);
 	NvFlexGetRigids(
-		_solver, 
-		nullptr, 
-		nullptr, 
-		nullptr, 
-		nullptr, 
-		nullptr, 
-		nullptr, 
-		nullptr, 
-		_rigids->bodyRotations.buffer, 
+		_solver,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		nullptr,
+		_rigids->bodyRotations.buffer,
 		_rigids->bodyTranslations.buffer
 	);
 }
@@ -673,30 +873,6 @@ void FFlexSimulation::_postTick(float DeltaTime)
 		if (flexSim)
 			flexSim->postTick(DeltaTime);
 	}
-}
-
-auto FFlexSimulation::initMeshInterface(
-	std::shared_ptr<tcodsMeshInterface> meshInterface,
-	FTransform meshInterfaceToWorld,
-	UCameraComponent * camera) -> void
-{
-	checkfSlow(_didInitSImulationManager, TEXT("initSimulationManager must be called before initMeshInterface."));
-
-	_meshInterface = meshInterface;
-
-	_meshToWorld = meshInterfaceToWorld;
-
-	_needsFlexReset = true;
-	_didInitFlex = false;
-	_didSpawnShapesAndMesh = false;
-
-	URandomWalkSimulation * randomWalkSim = simulationManager.simulation<URandomWalkSimulation>();
-
-	randomWalkSim->meshInterface = _meshInterface;
-
-	UVisualization_AgentPathLines * pathLines = simulationManager.simulation<UVisualization_AgentPathLines>();
-
-	pathLines->camera = camera;
 }
 
 auto FFlexSimulation::begin() -> void
@@ -800,19 +976,15 @@ auto FFlexSimulation::updateSphereWorldSpace( FVector position, float radius ) -
 	_sphereRadius = radius / transform.GetScale3D().GetMax();
 }
 
-auto FFlexSimulation::loadExportedDomainInfo( OutputDomainExport& exportInfo ) -> void
+auto FFlexSimulation::updateFlexState() -> void
 {
-	graphSimulation.clear();
-
 	graphSimulation.beginTransaction();
 
-	_meshInterface = exportInfo.meshInterface;
+	FTransform toWorld = FTransform::Identity;
 
-	FTransform worldToUsTransform = owner->GetRootComponent()->GetComponentTransform().Inverse();
-
-	FTransform toWorld = owner->GetRootComponent()->GetComponentTransform();
-
-	exportInfo.write(graphSimulation, worldToUsTransform);
+	auto& velocities = graphSimulation.componentStorage<FVelocityGraphObject>();
+	auto& elements = graphSimulation.componentStorage<FElementObject>();
+	auto& particles = graphSimulation.componentStorage<FFlexParticleObject>();
 
 	for (FGraphNode& node : graphSimulation.allNodes)
 	{
@@ -829,12 +1001,10 @@ auto FFlexSimulation::loadExportedDomainInfo( OutputDomainExport& exportInfo ) -
 		bool onSurface = false;
 
 		// constrain objects to the surface if they have a face
-		FElementObject * elementObject = node.hasComponent<FElementObject>() ? &node.component<FElementObject>(graphSimulation) : nullptr;
+		FElementObject * elementObject = elements.componentPtrForNode(node.handle());
 		if (elementObject && elementObject->surfaceIndex.isOnSurface())
 		{
 			FSurfaceBoundGraphObject& boundObject = node.addComponent<FSurfaceBoundGraphObject>(graphSimulation);
-
-			FVector p = toWorld.TransformPosition(node.position);
 
 			auto rotationAndNormal = _meshInterface->rotationAndNormalAtIndex(elementObject->surfaceIndex);
 
@@ -845,21 +1015,13 @@ auto FFlexSimulation::loadExportedDomainInfo( OutputDomainExport& exportInfo ) -
 		}
 
 		// set particle
-		if (node.hasComponent<FFlexParticleObject>())
+		if (FFlexParticleObject * particle = particles.componentPtrForNode(node.handle()))
 		{
-			FFlexParticleObject& particleObject = node.component<FFlexParticleObject>(graphSimulation);
-
 			// don't interact with the surface
-			particleObject.channel = onSurface ? eNvFlexPhaseShapeChannel1 : eNvFlexPhaseShapeChannel0;
+			particle->channel = onSurface ? eNvFlexPhaseShapeChannel1 : eNvFlexPhaseShapeChannel0;
 		}
 
-		if (node.hasComponent<FStaticPositionObject>())
-		{
-			node.component<FStaticPositionObject>(graphSimulation).position = node.position;
-		}
 	}
-
-	// setup the positions
 
 	graphSimulation.endTransaction();
 
@@ -929,6 +1091,7 @@ auto FFlexSimulation::addFlexTickWork(FlexTickWork_t work) -> void
 auto FFlexSimulation::initSimulationManager(AActor * owner_in) -> void
 {
 	_FFlexParticleObjectType = FGraphObject::componentType( FFlexParticleObject::StaticStruct() );
+	_FFlexRigidObjectType = FGraphObject::componentType(FFlexRigidBodyObject::StaticStruct());
 
 	owner = owner_in;
 
@@ -950,7 +1113,8 @@ auto FFlexSimulation::initSimulationManager(AActor * owner_in) -> void
 
 	URandomWalkSimulation * randomWalkSim = simulationManager.registerSimulation<URandomWalkSimulation>();
 	randomWalkSim->toWorld = toWorld;
-	
+	randomWalkSim->meshInterface = _meshInterface;
+
 	// setup listeners
 	graphSimulation.addComponentListener<FFlexParticleObject>((ComponentListener*) this );
 	graphSimulation.addComponentListener<FFlexRigidBodyObject>((ComponentListener*)this);
@@ -958,9 +1122,23 @@ auto FFlexSimulation::initSimulationManager(AActor * owner_in) -> void
 	graphSimulation.addEdgeObjectListener<FFlexConnection>(this);
 	graphSimulation.addEdgeObjectListener<FFlexRigidBodyConnection>(this);
 
-	simulationManager.attachSimulations();
+	simulationManager.attachAllSimulations();
 
 	_didInitSImulationManager = true;
+
+	_needsFlexReset = true;
+	_didInitFlex = false;
+	_didSpawnShapesAndMesh = false;
+}
+
+auto FFlexSimulation::setCamera(UCameraComponent * camera) -> void
+{
+	_camera = camera;
+
+	if (UVisualization_AgentPathLines * agentPathLines = simulationManager.simulation<UVisualization_AgentPathLines>() )
+	{
+		agentPathLines->camera = camera;
+	}
 }
 
 auto FFlexSimulation::_initParams() -> void
@@ -999,18 +1177,6 @@ auto FFlexSimulation::_instanceCount() -> size_t
 	return sum;
 }
 
-auto FFlexSimulation::_spawnDespawnSprings() -> void
-{
-	if (_flexSpringsToAdd.empty() && _flexSpringsToRemove.empty())
-		return;
-
-	// hack for now, just load everything again
-	_loadSprings();
-
-	_flexSpringsToAdd.clear();
-	_flexSpringsToRemove.clear();
-}
-
 void FFlexSimulation::_hackInitChannels()
 {
 	auto& flexParticles = graphSimulation.componentStorage<FFlexParticleObject>();
@@ -1026,9 +1192,15 @@ void FFlexSimulation::_hackInitChannels()
 	}
 }
 
-void FFlexSimulation::_loadSprings()
+void FFlexSimulation::_writeSpringState()
 {
-	auto n = graphSimulation.edgeStorage<FFlexConnection>().validSize();
+	auto connections = graphSimulation.edgeView<FFlexConnection>();
+
+	int n = 0;
+	connections.each([&](FFlexConnection& connection, FGraphEdge& edge)
+	{
+		n++;
+	});
 
 	auto& indices = _springs->indices;
 	auto& lengths = _springs->lengths;
@@ -1038,16 +1210,12 @@ void FFlexSimulation::_loadSprings()
 	lengths.resize(n);
 	coefficients.resize(n);
 
-	auto connections = graphSimulation.edgeView<FFlexConnection>();
 
 	int i = 0;
 	connections.each([&](FFlexConnection& connection, FGraphEdge& edge)
 	{
 		indices[(i * 2) + 0] = edge.a;
 		indices[(i * 2) + 1] = edge.b;
-
-		FGraphNode& a = graphSimulation.node(edge.a);
-		FGraphNode& b = graphSimulation.node(edge.b);
 
 		lengths[i] = connection.length;
 		coefficients[i] = connection.coefficient;
@@ -1244,6 +1412,8 @@ auto FFlexSimulation::_readFlexState( FVector4 * positions, FVector * velocities
 
 	for(FFlexParticleObject& particle : particles)
 	{
+		if (!particle.isValid()) continue;
+
 		FGraphNode& node = graphSimulation.node( particle.nodeIndex );
 
 		FVector4& p4 = positions[node.id];
@@ -1259,6 +1429,8 @@ auto FFlexSimulation::_readFlexState( FVector4 * positions, FVector * velocities
 
 	for(FVelocityGraphObject& velocityObject : velocityObjects)
 	{
+		if (!velocityObject.isValid()) continue;
+
 		auto id = velocityObject.nodeIndex;
 
 		FVector v = velocities[id];
@@ -1275,12 +1447,14 @@ auto FFlexSimulation::_writeFlexState( FVector4 * positions, FVector * velocitie
 	// write positions
 	auto& particles = graphSimulation.componentStorage<FFlexParticleObject>();
 
-	nParticles = particles.size();
+	nParticles = 0;
 
-	size_t activeIndex = 0;
+	int activeIndex = 0;
 
 	for(FFlexParticleObject& particle : particles)
 	{
+		if (!particle.isValid()) continue;
+
 		FGraphNode& node = graphSimulation.node( particle.nodeIndex );
 
 		positions[node.id] = node.position;
@@ -1294,6 +1468,7 @@ auto FFlexSimulation::_writeFlexState( FVector4 * positions, FVector * velocitie
 		active[activeIndex] = particle.nodeIndex;
 
 		++activeIndex;
+		++nParticles;
 	}
 
 	// write velocities
@@ -1301,6 +1476,8 @@ auto FFlexSimulation::_writeFlexState( FVector4 * positions, FVector * velocitie
 
 	for(FVelocityGraphObject& velocityObject : velocityObjects)
 	{
+		if( !velocityObject.isValid() ) continue;
+
 		auto nodeID = velocityObject.nodeIndex;
 
 		velocities[nodeID] = velocityObject.linearVelocity;
@@ -1313,6 +1490,8 @@ auto FFlexSimulation::_integrateRotations(float deltaT) -> void
 
 	for(FVelocityGraphObject& velocityObject : velocityObjects)
 	{
+		if (!velocityObject.isValid()) continue;
+
 		// https://gamedev.stackexchange.com/questions/108920/applying-angular-velocity-to-quaternion
 		// q = q_0 + dt/2 * w * q_0
 
@@ -1345,11 +1524,13 @@ auto FFlexSimulation::_loadTcodsMesh(tcodsMeshInterface& tcodsMesh) -> void
 
 	_mesh0_bounds = FBox(EForceInit::ForceInitToZero);
 
-	size_t sectionOffset = 0;
+	
 
 	for (auto& ptr : tcodsMesh._sections)
 	{
 		using namespace tcods;
+
+		const int32 sectionOffset = flexPositions.size();
 
 		Mesh& mesh = *ptr.second.get();
 
@@ -1388,12 +1569,10 @@ auto FFlexSimulation::_loadTcodsMesh(tcodsMeshInterface& tcodsMesh) -> void
 			flexIndices.push_back(triangle[2]);
 
 			// add the reverse face (double sided)
+			flexIndices.push_back(triangle[0]);
 			flexIndices.push_back(triangle[2]);
 			flexIndices.push_back(triangle[1]);
-			flexIndices.push_back(triangle[0]);
 		}
-
-		sectionOffset += flexPositions.size();
 	}
 
 	_mesh0_positions = std::make_unique< NvFlexVector<FVector4> >(_library, &flexPositions[0], flexPositions.size());
@@ -1482,6 +1661,8 @@ auto FFlexSimulation::_loadMesh( UStaticMeshComponent * meshComponent ) -> void
 void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType type )
 {
 	const static ComponentType FFlexRigidMemberType = componentType<FFlexRigidMember>();
+	const static ComponentType FFlexRigidBodyObjectType = componentType<FFlexRigidBodyObject>();
+
 
 	if (type == _FFlexParticleObjectType)
 	{
@@ -1494,7 +1675,7 @@ void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType typ
 		// don't interact with the surface
 		particle.channel = onSurface ? eNvFlexPhaseShapeChannel1 : eNvFlexPhaseShapeChannel0;
 	}
-	else if (type == _FFlexRigidObjectType)
+	else if (type == FFlexRigidBodyObjectType)
 	{
 		_flexRigidsDirty = true;
 	}
@@ -1506,7 +1687,9 @@ void FFlexSimulation::componentAdded( FGraphNodeHandle handle, ComponentType typ
 
 void FFlexSimulation::componentRemoved( FGraphNodeHandle node, ComponentType type )
 {
-	if (type != _FFlexParticleObjectType)
+	const static ComponentType FFlexRigidBodyObjectType = componentType<FFlexRigidBodyObject>();
+
+	if (type != FFlexRigidBodyObjectType)
 	{
 	}
 	else if (type == _FFlexRigidObjectType)
@@ -1547,8 +1730,7 @@ void FFlexSimulation::edgeObjectAdded(FGraphEdgeHandle handle, EdgeObjectType ty
 {
 	if (type == edgeType<FFlexConnection>())
 	{
-		_flexSpringsToAdd.insert(handle);
-		_flexSpringsToRemove.erase(handle);
+
 	}
 	else if (type == edgeType<FFlexRigidBodyConnection>())
 	{
@@ -1560,8 +1742,7 @@ void FFlexSimulation::edgeObjectRemoved(FGraphEdgeHandle handle, EdgeObjectType 
 {
 	if (type == edgeType<FFlexConnection>())
 	{
-		_flexSpringsToRemove.insert(handle);
-		_flexSpringsToAdd.erase(handle);
+
 	}
 	else if (type == edgeType<FFlexRigidBodyConnection>())
 	{
@@ -1617,7 +1798,7 @@ void URandomWalkSimulation::tick( float deltaT )
 	rand.GenerateNewSeed();
 
 	auto& surfaceDwellers = graph->componentStorage<FSurfaceBoundGraphObject>();
-
+	auto& rigids = graph->componentStorage<FFlexRigidBodyObject>();
 
 	for(FSurfaceBoundGraphObject& dweller : surfaceDwellers)
 	{
@@ -1637,7 +1818,7 @@ void URandomWalkSimulation::tick( float deltaT )
 		FQuat rotation = surfaceRotation * dweller.lastSurfaceRotation.Inverse();
 
 		node.position = toWorld.InverseTransformPosition( nearest.point );
-		node.orientation = rotation * node.orientation;
+		//node.orientation = rotation * node.orientation;
 
 		dweller.lastSurfaceRotation = surfaceRotation;
 		dweller.surfaceIndex = nearest.surfaceIndex;
@@ -1730,18 +1911,6 @@ void URandomWalkSimulation::tick( float deltaT )
 		up *= spinner.angularVelocityMagnitude;
 
 		velocityObject.angularVelocity = up;
-	}
-
-	auto& staticPositions = graph->componentStorage<FStaticPositionObject>();
-
-	for(FStaticPositionObject& staticObject : staticPositions)
-	{
-		FGraphNode& node = graph->node( staticObject.nodeIndex );
-
-		node.position = staticObject.position;
-
-		if(node.hasComponent<FVelocityGraphObject>())
-			node.component<FVelocityGraphObject>(*graph ).linearVelocity = FVector::ZeroVector;
 	}
 }
 
@@ -2291,24 +2460,16 @@ void FFlexRigidBodyObject::applyRotationTranslation(const FQuat& rotation, const
 	const FVector pr = node.position; // original node position
 	const FVector pr_ = pr + translation; // new node position
 
-	// cleaner to read, these will be inlined by the compiler
-	auto translate = [rotation, pr, pr_](FVector p) -> FVector {
-		// find the original direction vector, rotate and add it to the new position
-		return rotation.RotateVector(p - pr) + pr_;
-	};
-
-	auto rotate = [rotation](FQuat q) -> FQuat {
-		return rotation * q;
-	};
-
-	node.position = translate(node.position);
-	node.orientation = rotate(node.orientation);
+	node.position = pr_;
+	node.orientation = (rotation * node.orientation).GetNormalized();
 
 	nodeHandle().node(graph).each<FFlexRigidBodyConnection>(graph, [&](FGraphNodeHandle subRigidHandle, FFlexRigidBodyConnection& rigidConnection) {
 		FGraphNode& subNode = subRigidHandle(graph);
 
-		subNode.position = translate(subNode.position);
-		subNode.orientation = rotate(subNode.orientation);
+		subNode.position = rotation.RotateVector(subNode.position - pr) + pr_;
+
+		FQuat qsub = rotation * subNode.orientation;
+		subNode.orientation = qsub.GetNormalized();
 	});
 }
 
@@ -2325,7 +2486,7 @@ void FFlexRigidBodyObject::applyRotationTranslationInferVelocity(const FQuat& ro
 
 
 	node.position = pr_;
-	node.orientation = rotation * node.orientation;
+	node.orientation = (rotation * node.orientation).GetNormalized();
 
 	if (FVelocityGraphObject * nodeVelocity = velocities.componentPtrForNode(nodeHandle())) nodeVelocity->linearVelocity += translation;
 
@@ -2335,12 +2496,34 @@ void FFlexRigidBodyObject::applyRotationTranslationInferVelocity(const FQuat& ro
 		subNode.position = rotation.RotateVector(subNode.position - pr) + pr_;
 
 		FQuat qsub = rotation * subNode.orientation;
-		subNode.orientation = qsub;
+		subNode.orientation = qsub.GetNormalized();
 
 		FVelocityGraphObject * velocity = velocities.componentPtrForNode(subRigidHandle);
 
 		if( velocity ) velocity->linearVelocity += translation;
 	});
+}
+
+void FFlexRigidBodyObject::setRotationPosition(const FQuat rotation_unrealBug, const FVector position, FGraph& graph)
+{
+	FGraphNode & node = graph.node(nodeHandle());
+
+	FVector deltaT = position - node.position;
+	const FQuat rotation_fixedUnrealBug = rotation_unrealBug;
+	FQuat deltaQ = rotation_fixedUnrealBug * node.orientation.Inverse();
+
+	applyRotationTranslation(deltaQ, deltaT, graph);
+}
+
+void FFlexRigidBodyObject::setRotationPositionInferVelocity(const FQuat rotation_unrealBug, const FVector position, FGraph& graph)
+{
+	FGraphNode & node = graph.node(nodeHandle());
+
+	FVector deltaT = position - node.position;
+	const FQuat rotation_fixedUnrealBug = rotation_unrealBug;
+	FQuat deltaQ = rotation_fixedUnrealBug * node.orientation.Inverse();
+
+	applyRotationTranslationInferVelocity(deltaQ, deltaT, graph);
 }
 
 FFlexRigidBodyObject& FFlexRigidBodyObject::createRigidBody(FGraph& graph, TArray<FGraphNodeHandle>& particlesInBody, FGraphNodeHandle rigidNodeHandle)
@@ -2418,18 +2601,161 @@ FGraphNodeHandle FFlexRigidBodyObject::getRigidBodyHandle(FGraph& graph, FGraphN
 	if (node.hasComponent<FFlexRigidBodyObject>())
 		return subNodeHandle;
 
+	auto edgeStorage = graph.edgeStorage<FFlexRigidBodyConnection>();
+
 	for (auto ei : node.edges)
 	{
 		FGraphEdgeHandle edgeHandle(ei);
 
-		if (graph.edgeObjectPtr<FFlexRigidBodyConnection>(edgeHandle))
+		if (edgeStorage.isValid(edgeHandle) && edgeStorage.objectPtr(edgeHandle))
 		{
 			FGraphEdge& edge = graph.edge(edgeHandle);
 
-			return edge.other(subNodeHandle);
+			if( edge.isValid() )
+				return edge.other(subNodeHandle);
 		}
 	}
 
 	return FGraphNodeHandle::null;
 }
 
+void UStaticPositionSimulation::attach()
+{
+
+}
+
+void UStaticPositionSimulation::tick(float deltaT)
+{
+	_tickStatic(deltaT);
+	_tickStabalized(deltaT);
+}
+
+void UStaticPositionSimulation::tick_paused(float deltaT)
+{
+	tick(deltaT);
+}
+
+void UStaticPositionSimulation::_tickStabalized(float deltaT)
+{
+	auto& staticPositions = graph->componentStorage<FStabalizedPosition>();
+	auto& rigids = graph->componentStorage<FFlexRigidBodyObject>();
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+	// initialize position
+	for (FStabalizedPosition& staticObject : staticPositions)
+	{
+		if (!staticObject.isValid()) continue;
+		if (staticObject.didLoad) continue;
+
+		FGraphNode& node = graph->node(staticObject.nodeHandle());
+
+		staticObject.position = node.position;
+		staticObject.orientation = node.orientation;
+
+		staticObject.didLoad = true;
+	}
+
+	// set the static positions
+	for (FStabalizedPosition& staticObject : staticPositions)
+	{
+		if (!staticObject.isValid()) continue;
+
+		FGraphNode& node = graph->node(staticObject.nodeHandle());
+
+		if (!node.isValid()) continue;
+
+		FVector position = FMath::Lerp(node.position, staticObject.position, deltaT * staticObject.strength);
+		FQuat orientation = FMath::Lerp(node.orientation, staticObject.orientation, deltaT * staticObject.strength);
+
+
+		FGraphNodeHandle rigidHandle = FFlexRigidBodyObject::getRigidBodyHandle(*graph, staticObject.nodeHandle());
+
+		if (rigidHandle)
+		{
+			FQuat dq = orientation * node.orientation.Inverse();
+			FVector dp = position - node.position;
+
+			FFlexRigidBodyObject * rigid = rigids.componentPtrForNode(rigidHandle);
+
+			rigid->applyRotationTranslationInferVelocity(dq, dp, *graph);
+		}
+		else
+		{
+			FVector dv = position - node.position;
+			FQuat dq = orientation * node.orientation.Inverse();
+		
+
+			node.position = position;
+			node.orientation = orientation;
+
+			if (FVelocityGraphObject * velocity = velocities.componentPtrForNode(staticObject.nodeHandle()))
+			{
+				if (deltaT == 0.0f) deltaT = 0.001f;
+				velocity->linearVelocity += dv / deltaT;
+			}
+		}
+	}
+
+	
+}
+
+void UStaticPositionSimulation::_tickStatic(float deltaT)
+{
+	auto& staticPositions = graph->componentStorage<FStaticPositionObject>();
+	auto& rigids = graph->componentStorage<FFlexRigidBodyObject>();
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+	// initialize position
+	for (FStaticPositionObject& staticObject : staticPositions)
+	{
+		if (!staticObject.isValid()) continue;
+		if (staticObject.didLoad) continue;
+
+		FGraphNode& node = graph->node(staticObject.nodeHandle());
+
+		staticObject.position = node.position;
+		staticObject.orientation = node.orientation;
+
+		staticObject.didLoad = true;
+	}
+
+	// set the static positions
+	for (FStaticPositionObject& staticObject : staticPositions)
+	{
+		if (!staticObject.isValid()) continue;
+
+		FGraphNode& node = graph->node(staticObject.nodeHandle());
+
+		if (!node.isValid()) continue;
+
+
+		FGraphNodeHandle rigidHandle = FFlexRigidBodyObject::getRigidBodyHandle(*graph, staticObject.nodeHandle());
+
+		if (rigidHandle)
+		{
+			FQuat dq = staticObject.orientation * node.orientation.Inverse();
+			FVector dp = staticObject.position - node.position;
+
+			FFlexRigidBodyObject * rigid = rigids.componentPtrForNode(rigidHandle);
+
+			rigid->applyRotationTranslation(dq, dp, *graph);
+		}
+		else
+		{
+			FVector dv = staticObject.position - node.position;
+			
+			node.position = staticObject.position;
+			node.orientation = staticObject.orientation;
+
+			node.orientation = node.orientation.GetNormalized();
+
+			// we add velocity for flex connected objects, otherwise they keep pulling this node
+			if (FVelocityGraphObject * velocity = velocities.componentPtrForNode(staticObject.nodeHandle()))
+			{
+				if (deltaT == 0.0f) deltaT = 0.001f;
+
+				velocity->linearVelocity += dv / deltaT;
+			}
+		}
+	}
+}

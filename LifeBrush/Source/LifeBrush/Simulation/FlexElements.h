@@ -79,6 +79,9 @@ public:
 
 	void applyRotationTranslationInferVelocity(const FQuat& rotation, const FVector& translation, FGraph& graph);
 
+	void setRotationPosition(const FQuat rotation, const FVector position, FGraph& graph);
+
+	void setRotationPositionInferVelocity(const FQuat rotation, const FVector position, FGraph& graph);
 
 protected:
 	static void _ensureFlexParticle(FGraphNode& node, FGraph& graph);
@@ -306,9 +309,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
 	float hyrogenInteractionRadius = 5.0f;
 
-public:
+protected:
 	virtual void attach() override;
 
+public:
 	virtual void tick( float deltaT ) override;
 
 	virtual void flexTick( 
@@ -366,8 +370,37 @@ struct LIFEBRUSH_API FStaticPositionObject : public FGraphObject
 	GENERATED_BODY()
 
 public:
+	FStaticPositionObject() {}
+	FStaticPositionObject(FVector position, FQuat orientation) : position(position), orientation(orientation), didLoad(true) {}
+
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Mitochondria" )
 	FVector position = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	FQuat orientation = FQuat::Identity;
+
+	bool didLoad = false;
+};
+
+USTRUCT(BlueprintType)
+struct LIFEBRUSH_API FStabalizedPosition : public FGraphObject
+{
+	GENERATED_BODY()
+
+public:
+	FStabalizedPosition() {}
+	FStabalizedPosition(FVector position, FQuat orientation) : position(position), orientation(orientation), didLoad(true) {}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	FVector position = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	FQuat orientation = FQuat::Identity;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	float strength = 0.1f;
+
+	bool didLoad = false;
 };
 
 USTRUCT( BlueprintType )
@@ -403,9 +436,10 @@ UCLASS()
 class LIFEBRUSH_API URandomWalkSimulation : public UObjectSimulation
 {
 	GENERATED_BODY()
-public:
+protected:
 	virtual void attach();
 
+public:
 	virtual void tick( float deltaT ) override;
 
 	std::shared_ptr<tcodsMeshInterface> meshInterface;
@@ -415,8 +449,22 @@ public:
 
 
 
+UCLASS()
+class LIFEBRUSH_API UStaticPositionSimulation : public UObjectSimulation
+{
+	GENERATED_BODY()
+protected:
+	virtual void attach();
 
+public:
+	virtual void tick(float deltaT) override;
+	virtual void tick_paused(float deltaT) override;
 
+	void _tickStabalized(float deltaT);
+	void _tickStatic(float deltaT);
+
+	FTransform toWorld;
+};
 
 
 
@@ -687,8 +735,13 @@ public:
 
 
 
+/*
+  Interfaces a FGraph simulation with the Flex particle physics engine. It will be responsible for ticking the simulation manager.
 
-
+  It will register two additional simulations:
+  - UVisualization_AgentPathLines
+  - URandomWalkSimulation
+*/
 struct FFlexSimulation : public ComponentListener, EdgeObjectListener
 {
 public:
@@ -711,6 +764,7 @@ public:
 		simulationManager(simulationManager),
 		flexParams(flexParams)
 	{
+		_meshInterface = std::make_shared<tcodsMeshInterface>();
 	}
 
 	virtual ~FFlexSimulation()
@@ -721,10 +775,7 @@ public:
 	// Called before initMeshInterface
 	auto initSimulationManager(AActor * owner) -> void;
 
-	// Called after initSimulationManager
-	auto initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterface, 
-		FTransform meshInterfaceToWorld, 
-		UCameraComponent * camera) -> void;
+	auto setCamera(UCameraComponent * camera) -> void;
 
 	// Call this after init. It will send FObjectSimulation::begin to all the simulations,
 	// this is the place to start showing graphics associated with the simulation,
@@ -741,7 +792,7 @@ public:
 
 	auto updateSphereWorldSpace(FVector position, float radius) -> void;
 
-	auto loadExportedDomainInfo(OutputDomainExport& exportInfo) -> void;
+	auto updateFlexState() -> void;
 	auto exportElementDomain()->FGraphSnapshot;
 
 	auto setInstanceManagerBounds(FBox instanceManagerRelativeBounds) -> void;
@@ -769,14 +820,11 @@ protected:
 
 	void _hackInitChannels();
 
-	// The spring buffers should have already been mapped before calling.
-	auto _spawnDespawnSprings() -> void;
-
 	auto _spawnShapes(NvFlexCollisionGeometry * geometry, FVector4 * shapePositions, FQuat * shapeRotations, int * shapeFlags) -> void;
 	auto _spawnMesh(NvFlexCollisionGeometry * geometry, FVector4 * shapePositions, FQuat * shapeRotations, int * shapeFlags) -> void;
 
 	// The spring buffers should have already been mapped before calling.
-	void _loadSprings();
+	void _writeSpringState();
 
 
 	void _loadRigids();
@@ -812,6 +860,7 @@ public:
 	FNvFlexParameters flexParams;
 
 	AActor * owner;
+	UCameraComponent * _camera;
 
 protected:
 	NvFlexLibrary * _library = nullptr;
@@ -1022,11 +1071,11 @@ protected:
 	InstanceManager _instanceManager;
 	bool _didSpawnShapesAndMesh = false;
 
-	FVector _spherePosition = FVector::ZeroVector;
-	float _sphereRadius = 20.0f;
+	FVector _spherePosition = FVector(0.0f,0.0f,-500.0f);
+	float _sphereRadius = 0.0f;
 
-	const size_t _maxParticles = 20000;
-	const size_t _maxNeighbors = 128;
+	const size_t _maxParticles = 34000;
+	const size_t _maxNeighbors = 64;
 
 	size_t nParticles = 0;
 
@@ -1034,9 +1083,6 @@ protected:
 
 	std::shared_ptr<tcodsMeshInterface> _meshInterface;
 	FTransform _meshToWorld;
-
-	std::set<FGraphEdgeHandle> _flexSpringsToAdd;
-	std::set<FGraphEdgeHandle> _flexSpringsToRemove;
 
 	// We don't have fine enough control over the flex buffers to insert/remove rigids, we'll just reconstruct the whole thing.
 	// Maybe NvFlexSetRigids(..., indices, ...) is where we can insert some dead indices? make them inactive? I don't know. Reconstructing
@@ -1064,7 +1110,7 @@ class LIFEBRUSH_API UGraphComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Mitochondria" )
+	UPROPERTY( BlueprintReadWrite, Category = "Mitochondria" )
 	FGraph graph;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Mitochondria")
@@ -1098,14 +1144,38 @@ public:
 
 
 public:
-	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "Mitochondria" )
+	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "LifeBrush" )
 	FNvFlexParameters flexParams;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mitochondria")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	AActor * rulesActor = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FSoftObjectPath softMLRulesActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	AActor * swarmGrammarRulesActor = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FSoftObjectPath softSwarmGrammarRulesActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	UMaterialInterface * meshInterfaceMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FBox limits = FBox(EForceInit::ForceInitToZero);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	bool drawLimits = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	float timeStep = 1.0f / 90.0f;
+
+	// To allow this component to tick the FFlexSimulation struct, set this to true.
+	// This can be used to allow another object (like the URegionGrowingGeneration) to control FFlexSimulation ticking.
+	// This is not the same thing as FFlexSimulation:isPlaying(). 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	bool tickFlexSimulation = true;
 
 protected:
 	std::unique_ptr<FFlexSimulation> _flexSimulation;
@@ -1116,6 +1186,26 @@ protected:
 	URuntimeMeshComponent * _meshInterfaceRMC = nullptr;
 
 	std::vector<uint32_t> _chunkSections;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	UBoxComponent * _limitsBoxComponent = nullptr;
+
+	std::unique_ptr<SynthesisContext> _context;
+
+	bool _didInitOnce = false;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void playSimulation();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void pauseSimulation();
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	void initWithCameraComponent(UCameraComponent * camera);
+
+	UFUNCTION(BlueprintCallable, Category = LifeBrush)
+	bool isSimulationPlaying();
 
 public:
 	UFlexSimulationComponent();
@@ -1128,15 +1218,12 @@ public:
 
 	virtual void BeginPlay();
 
-
-
-	auto init(std::shared_ptr<tcodsMeshInterface> meshInterface,
-		FTransform meshInterfaceToWorld,
-		UCameraComponent * camera) -> void;
+	auto init(FTransform meshInterfaceToWorld, UCameraComponent * camera) -> void;
 
 	void updateMeshInterface(class UChunkedVolumeComponent * chunkVolume);
 
 	FFlexSimulation* flexSimulation() { return _flexSimulation.get(); }
+	SynthesisContext * context() { return _context.get(); }
 
 	// Creates a snapshot of the geometry created for the simulation. Call snapshotToActor on each simulation.
 	ASimulationSnapshotActor* createGraphicalSnapshotActor(UWorld * world);
@@ -1145,12 +1232,24 @@ public:
 	// transient components. It doesn't call createSnapshotActor.
 	AActor * snapshotSimulationStateToWorld(UWorld * world);
 
+	URuntimeMeshComponent * meshInterfaceRMC() { return _meshInterfaceRMC; }
+
+
 protected:
 	void initFlexSimulationObject();
 
+	void _initContext();
 	void _initMeshInterface(std::shared_ptr<tcodsMeshInterface> meshInterface);
 	void _cacheMeshesForMeshInterface();
 
-	void _readRules();
+	void _readMLRules();
+	void _readSGRules();
+
+	// Limits Drawing
+// --------------
+	void _updateLimits();
+	void _updateDrawLimits();
+	void _drawLimits();
+	void _hideLimits();
 };
 

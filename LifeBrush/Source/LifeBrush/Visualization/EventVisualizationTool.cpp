@@ -106,7 +106,7 @@ void UEventVisualizationTool::_traceSelection(TSet<USEGraphEvent*>& selection)
 
 	UTimelineSimulation * timeline = _flexSimulation->simulationManager.simulation<UTimelineSimulation>();
 
-	timeline->traceEvents(events);
+	timeline->traceEvents(events, maxHops);
 }
 
 
@@ -242,8 +242,6 @@ void UPhysicalInteractionTool::oneHandStart(UPrimitiveComponent * handComponent)
 
 	if (interactionMode == EPhysicalInteractionType::Grab)
 	{
-		_cachedCalculatedVelocity.Empty();
-
 		_grabbedNode = FGraphNodeHandle::null;
 
 		FGraph& graph = _flexSimulation->graphSimulation;
@@ -269,7 +267,13 @@ void UPhysicalInteractionTool::oneHandStart(UPrimitiveComponent * handComponent)
 
 		if (nearestHandle && nearestDistanceSqrd < interactionDistanceSqrd )
 		{
-			_grabbedNode = nearestHandle;
+			//// for whatever reason, grabbing a non rigid handle blows things up
+			//if (FGraphNodeHandle rigidHandle = FFlexRigidBodyObject::getRigidBodyHandle(graph, nearestHandle))
+			//{
+			//	_grabbedNode = rigidHandle;
+			//}
+			//else
+				_grabbedNode = nearestHandle;
 
 			FGraphNode& theNode = _grabbedNode(graph);
 
@@ -293,22 +297,39 @@ void UPhysicalInteractionTool::oneHandEnd(UPrimitiveComponent * handComponent)
 	// put it somewhere far away
 	if (interactionMode == EPhysicalInteractionType::Punch)
 		_flexSimulation->updateSphereWorldSpace(FVector(10000.0f, 0.0f, 0.0f), 0.1f);
-	else if (interactionMode == EPhysicalInteractionType::Grab)
+	else if (interactionMode == EPhysicalInteractionType::Grab && _grabbedNode)
 	{
 		FGraph& graph = _flexSimulation->graphSimulation;
 
-		auto cachedVelocities = _cachedCalculatedVelocity;
-		_flexSimulation->addTickWork([&graph, cachedVelocities] {
-			for (auto& pair : cachedVelocities)
-			{
-				FGraphNode& node = graph.node(pair.Key);
+		FVector releaseVelocity = _releaseVelocity;
 
+		FGraphNodeHandle grabbedNode = _grabbedNode;
+
+		_flexSimulation->addTickWork([&graph, grabbedNode, releaseVelocity] {
+
+			FGraphNode& node = graph.node(grabbedNode);
+
+			if (FGraphNodeHandle rigidHandle = FFlexRigidBodyObject::getRigidBodyHandle(graph, node.handle()))
+			{
+				rigidHandle(graph).each<FFlexRigidBodyConnection>(graph, [&](FGraphNodeHandle subRigidHandle, FFlexRigidBodyConnection& rigidConnection) {
+					FGraphNode& subNode = subRigidHandle(graph);
+
+					// while we're holding it, kill velocity
+					if (subNode.hasComponent<FVelocityGraphObject>())
+					{
+						subNode.component<FVelocityGraphObject>(graph).linearVelocity = FVector::ZeroVector;
+						subNode.component<FVelocityGraphObject>(graph).angularVelocity = FVector::ZeroVector;
+					}
+				});
+			}
+			else
+			{
 				if (node.hasComponent<FVelocityGraphObject>())
-					node.component<FVelocityGraphObject>(graph).linearVelocity = pair.Value;
+					node.component<FVelocityGraphObject>(graph).linearVelocity = releaseVelocity;
+
 			}
 		});
 
-		_cachedCalculatedVelocity.Empty();
 	}
 }
 
@@ -336,11 +357,13 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 		if (!_grabbedNode)
 			return;
 
-		FGraphNodeHandle grabbedNode = _grabbedNode;
-
 		FGraph& graph = _flexSimulation->graphSimulation;
 
+		FGraphNodeHandle grabbedNode = _grabbedNode;
+
 		FVector velocity = (hand - lastHand) / (dt > 0.0f ? dt : 1.0f);
+
+		_releaseVelocity = velocity;
 
 		FVector offset = (local.GetRotation() * _startHand.GetRotation().Inverse()).RotateVector(_grabbedTransform.GetLocation() - _startHand.GetLocation());
 
@@ -349,9 +372,7 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 
 		FQuat rotationalDiff = local.GetRotation() * lastLocal.GetRotation().Inverse();
 
-		auto& cachedVelocity = _cachedCalculatedVelocity;
-
-		_flexSimulation->addTickWork([&graph, &cachedVelocity, grabbedNode, velocity, invDt, pr, pr_, rotationalDiff] {
+		_flexSimulation->addTickWork([&graph, grabbedNode, velocity, invDt, pr, pr_, rotationalDiff] {
 			FGraphNode& node = graph.node(grabbedNode);
 
 			if (!node.isValid())
@@ -372,11 +393,13 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 
 					const FVector newPosition = translate(subNode.position);
 
-					// for stability while holding, set linear velocity to the velocity of one node
-					subNode.component<FVelocityGraphObject>(graph).linearVelocity = velocity;
+					// while we're holding it, kill velocity
+					if (subNode.hasComponent<FVelocityGraphObject>())
+					{
+						subNode.component<FVelocityGraphObject>(graph).linearVelocity = FVector::ZeroVector;
+						subNode.component<FVelocityGraphObject>(graph).angularVelocity = FVector::ZeroVector;
+					}
 
-					// calculate velocity from the change in position and cache it, we'll set it on oneHandEnd
-					cachedVelocity.Add(subRigidHandle, (newPosition - subNode.position) * invDt + velocity);
 					subNode.position = newPosition;
 					subNode.orientation = rotate(subNode.orientation);
 				});
@@ -384,7 +407,10 @@ void UPhysicalInteractionTool::tickOneHand(float dt, UPrimitiveComponent * handC
 			else
 			{
 				if (node.hasComponent<FVelocityGraphObject>())
-					node.component<FVelocityGraphObject>(graph).linearVelocity = velocity;
+				{
+					node.component<FVelocityGraphObject>(graph).linearVelocity = FVector::ZeroVector;
+					node.component<FVelocityGraphObject>(graph).angularVelocity = FVector::ZeroVector;
+				}
 
 				node.position = translate(node.position);
 				node.orientation = rotate(node.orientation);

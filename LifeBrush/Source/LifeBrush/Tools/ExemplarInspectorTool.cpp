@@ -2,8 +2,11 @@
 
 #include "LifeBrush.h"
 
+#include "ExemplarInspectorTool.h"
+
+#if WITH_EDITOR
 #include "Toolkits/ToolkitManager.h"
-#include "IStructureDetailsView.h"
+#endif
 
 #include "ElementEditor/DiscreteElementEditorComponent.h"
 #include "Tools/MeshCollectionTool.h"
@@ -184,7 +187,7 @@ void UExemplarInspectorTool::didGrabItem(UCollectionSpace * collectionSpace, int
 	}
 
 	// add it to the exemplar
-	AActor * exemplar = _elementEditor->exemplarActor();
+	AActor * exemplar = _elementEditor->exemplarActor;
 
 	if (!exemplar) return;
 
@@ -399,6 +402,7 @@ void AExemplarInspectorActor::setSelection(UObject * object)
 {
 	_selection = object;
 
+#if WITH_EDITOR
 	FPropertyEditorModule& propertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	FDetailsViewArgs detailArgs;
@@ -408,11 +412,6 @@ void AExemplarInspectorActor::setSelection(UObject * object)
 	widgetComponent->SetSlateWidget(detailView);
 
 	detailView->SetObject(object, true);
-
-
-
-
-
 
 
 	/*FStructureDetailsViewArgs structDetailsArgs;
@@ -428,4 +427,5 @@ void AExemplarInspectorActor::setSelection(UObject * object)
 	TSharedPtr<SWidget> slatePtr = structView->GetWidget();
 
 	widgetComponent->SetSlateWidget(slatePtr);*/
+#endif
 }

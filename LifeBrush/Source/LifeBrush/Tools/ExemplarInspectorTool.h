@@ -8,10 +8,15 @@
 #include "GrabTool.h"
 
 #include "WidgetComponent.h"
-#include "IStructureDetailsView.h"
 #include "MeshCollectionTool.h"
 
+#if WITH_EDITOR
+#include "IStructureDetailsView.h"
+#endif
+
 #include "ExemplarInspectorTool.generated.h"
+
+
 
 class UExemplarInspectorTool;
 class UDiscreteElementEditorComponent;
@@ -36,8 +41,9 @@ protected:
 	UPROPERTY()
 	UObject * _selection;
 
+#if WITH_EDITOR
 	TSharedPtr<class IStructureDetailsView> _structDetailsView;
-
+#endif
 };
 
 
@@ -126,4 +132,5 @@ protected:
 
 	FTransform _inspectorSpawnTransform();
 };
+
 

@@ -16,10 +16,20 @@ class LIFEBRUSH_API UObjectSimulation : public UObject, public ComponentListener
 {
 	GENERATED_BODY()
 
+	friend class UGraphSimulationManager;
+
 public:
 	FGraph * graph = nullptr;
 	UGraphSimulationManager * simulationManager = nullptr;
 	AActor * actor = nullptr;
+
+protected:
+	// Called after the graph, simulationManager and actor have been set.
+	virtual void attach()
+	{
+	}
+
+	virtual void detach() {}
 
 public:
 	virtual bool canRunInEditor()
@@ -27,12 +37,7 @@ public:
 		return false;
 	}
 	
-	// Called after the graph, simulationManager and actor have been set.
-	virtual void attach()
-	{
-	}
 
-	virtual void detach() {}
 
 	// This will be called after `attach`, but before the first `tick` call.
 	virtual void begin() {}
@@ -89,20 +94,25 @@ public:
 	UPROPERTY( EditAnywhere, Instanced, BlueprintReadWrite, Category = "ShipEditor" )
 	TArray<class UObjectSimulation*> simulations;
 
+	std::vector<UObjectSimulation*> attachedSimulations;
+
 	UCameraComponent * camera = nullptr;
 
 protected:
 	FGraph * _graph = nullptr;
 	AActor * _actor = nullptr;
 
+	// a subset of simulations, that are attached and will be ticked
+	TArray<class UObjectSimulation*> _attachedSimulations;
+
 public:
 
 	// init must be called before init_simulations or registerSimulation.
 	void init(FGraph& graph_in, AActor& actor, bool autoInstantiateSimulations = false);
 	// init_simulations must be called before tick or tick_paused.
-	void attachSimulations();
+	void attachAllSimulations();
 
-	void detachSimulations();
+	void detachAllSimulations();
 
 	void begin();
 
@@ -133,6 +143,7 @@ public:
 	//---------------------------------------------------------------------------
 	// Simulation Registration
 	//---------------------------------------------------------------------------
+	// Allocates the simulation object, if it doesn't already exist, and adds it to UGraphSimulationManager::simulations.
 	template<class TObjectSimulation>
 	TObjectSimulation* registerSimulation()
 	{
@@ -143,7 +154,30 @@ public:
 
 	UObjectSimulation * registerSimulation(TSubclassOf<UObjectSimulation> simulationClass);
 
+	bool isAttached(UObjectSimulation * simulation);
+
+
+	template<class TObjectSimulation>
+	void attachSimulation()
+	{
+		auto sim = simulation<TObjectSimulation>();
+
+		_attachSimulation(sim);
+	}
+
+	template<class TObjectSimulation>
+	void detachSimulation()
+	{
+		auto sim = simulation<TObjectSimulation>();
+
+		_detachSimulation(sim);
+	}
+
 protected:
+	// Schedules the simulation for tick and sends it an UObjectSimulation::attach message.
+	void _attachSimulation(UObjectSimulation * simulation);
+	// Unschedules the simulation for tick and sends it an UObjectSimulation::detach message.
+	void _detachSimulation(UObjectSimulation * simulation);
 
 	void _autoInstantiateSimulations();
 

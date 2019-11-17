@@ -77,7 +77,7 @@ public:
 
 	virtual void reloadData();
 
-	FVector UCollectionSpace::nearest(UPrimitiveComponent * interactionPoint);
+	FVector nearest(UPrimitiveComponent * interactionPoint);
 
 	// Interaction events
 	virtual void begin_oneHand(UPrimitiveComponent * interactionPoint);

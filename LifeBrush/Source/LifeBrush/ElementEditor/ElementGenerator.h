@@ -12,6 +12,8 @@
 #include "ElementGenerator.generated.h"
 
 struct FFlexSimulation;
+class UFlexSimulationComponent;
+class UDiscreteElementEditorComponent;
 
 UCLASS(ClassGroup = (Custom), EditInlineNew, DefaultToInstanced, meta = (BlueprintSpawnableComponent))
 class LIFEBRUSH_API UElementGenerator : public UObject
@@ -21,17 +23,13 @@ class LIFEBRUSH_API UElementGenerator : public UObject
 public:
 	virtual ~UElementGenerator() {}
 
-	virtual void attach(SynthesisContext * context, UGraphSimulationManager * simulationManager)
-	{
+	virtual void init(SynthesisContext * context, UGraphSimulationManager * simulationManager) {}
 
-	}
-
-	virtual void detach()
-	{
-
-	}
+	virtual void attach(SynthesisContext * context, UGraphSimulationManager * simulationManager) {}
+	virtual void detach() {}
 
 	virtual void tick(float deltaT) {}
+	virtual void tickPaused(float deltaT) {}
 
 	virtual bool wantsFlex() { return false; }
 
@@ -46,6 +44,11 @@ public:
 	virtual void eraseInRadiusAt(FVector point, float radius, FSurfaceIndex surfaceIndex = FSurfaceIndex::OffSurface) {}
 	virtual void endEraserPath() {}
 
-	// Only set if wantsFlex is true.
+	// these generators must receive an init before we do
+	virtual std::vector<UClass*> dependencies() { return std::vector<UClass*>(); }
+
 	FFlexSimulation * flexSimulation = nullptr;
+	UFlexSimulationComponent * flexSimulationComponent = nullptr;
+	UDiscreteElementEditorComponent * elementEditorComponent = nullptr;
+	AActor * exemplarActor = nullptr;
 };

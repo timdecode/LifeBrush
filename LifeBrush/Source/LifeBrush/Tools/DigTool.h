@@ -152,6 +152,8 @@ protected:
 	void _capsuleDig(UChunkedVolumeComponent * volume, FVector volumeStart, FVector volumeEnd, float volumeRadius, float dt);
 	void _smooth(UChunkedVolumeComponent * volume, FVector volumePosition, float volumeRadius);
 
+	void _saveMeshToScene(URuntimeMeshComponent * rmc);
+
 	void _createSelectionMeshComponent( UPrimitiveComponent * selectionPoint );
 
 	void _destroySelectionMeshComponent();

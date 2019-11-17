@@ -72,10 +72,11 @@ class LIFEBRUSH_API UMLAggregateSimulation : public UObjectSimulation
 {
 	GENERATED_BODY()
 
-public:
+protected:
 	virtual void attach() override;
 	virtual void detach() override;
 
+public:
 	virtual void componentAdded(FGraphNodeHandle node, ComponentType type) override;
 
 protected:

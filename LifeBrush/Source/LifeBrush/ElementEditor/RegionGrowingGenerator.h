@@ -19,10 +19,6 @@ class LIFEBRUSH_API URegionGrowingGenerator : public UElementGenerator
 {
 	GENERATED_BODY()
 
-public:
-	AActor * exemplar;
-
-
 protected: // Threading
 	ctpl::thread_pool _generationWorker;
 
@@ -34,6 +30,7 @@ protected: // Core data structures
 
 	SynthesisContext * _outputContext;
 
+	// The simulation manager that we use to draw the scene
 	UPROPERTY()
 	UGraphSimulationManager * _outputSimulationManager;
 
@@ -49,6 +46,8 @@ protected:
 
 public:
 	virtual ~URegionGrowingGenerator() {}
+
+	virtual void init(SynthesisContext * context, UGraphSimulationManager * simulationManager) override;
 
 	virtual void attach(SynthesisContext * context, UGraphSimulationManager * simulationManager) override;
 
@@ -67,7 +66,13 @@ public:
 	virtual void eraseInRadiusAt(FVector point, float radius, FSurfaceIndex surfaceIndex = FSurfaceIndex::OffSurface) override;
 	virtual void endEraserPath() override;
 
-	void setSelection(std::vector<AElementActor*> elementActors);
+	void setExampleSelection(std::vector<AElementActor*> elementActors);
+	std::vector<FGraphNodeHandle> exampleSelection();
+
+	FGraphNodeHandle handleForExampleActor(AElementActor * elementActor);
+
+	UGraphSimulationManager * exampleSimulationManager();
+
 
 	void setGenerationMode(EGenerationMode generationMode);
 	EGenerationMode generationMode();
@@ -82,8 +87,6 @@ protected:
 	FString _optimizationParametersString(FNeighbourhoodParameters& params);
 
 public:
-	ESpaceMode spaceModeHint = ESpaceMode::Volume;
-
 	UPROPERTY(EditAnywhere) bool perElementParameters = false;
 
 	UPROPERTY(EditAnywhere) bool pauseSynthesis = false;

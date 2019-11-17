@@ -148,3 +148,48 @@ typedef Point_kdTree<float, FVector> FVector_kdTree;
 
 
 
+struct SurfacePosition
+{
+	SurfacePosition() {}
+	SurfacePosition(FVector position, float radius, FSurfaceIndex surfaceIndex) : position(position), radius(radius), surfaceIndex(surfaceIndex) {}
+
+	FVector position;
+
+	FSurfaceIndex surfaceIndex = FSurfaceIndex::OffSurface;
+
+
+	float& operator[](int32 i) { return (&position.X)[i]; }
+
+	float radius = 0.0f;
+};
+
+struct SurfacePositionCloud
+{
+	std::vector<SurfacePosition>  pts;
+
+	// Must return the number of data points
+	inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+	// Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
+	inline float kdtree_distance(const float *p1, const size_t idx_p2, size_t /*size*/) const
+	{
+		const auto& p2_3f = pts[idx_p2].position;
+		const auto& p1_3f = *reinterpret_cast<const FVector*>(p1);
+
+		return (p2_3f - p1_3f).SizeSquared();
+	}
+
+	inline float kdtree_get_pt(const size_t idx, int dim) const
+	{
+		return pts[idx].position[dim];
+	}
+
+	template <class BBOX>
+	bool kdtree_get_bbox(BBOX& /*bb*/) const { return false; }
+};
+
+typedef nanoflann::KDTreeSingleIndexDynamicAdaptor<
+	nanoflann::L2_Simple_Adaptor<float, SurfacePositionCloud>,
+	SurfacePositionCloud,
+	3 /* dim */
+> SurfacePositionDynamicCloud;

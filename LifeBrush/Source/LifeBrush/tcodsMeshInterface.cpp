@@ -979,6 +979,7 @@ auto tcodsUStaticMeshBuilder::buildMeshes(
 
 		mesh.topologyChange();
 		mesh.geometryChange();
+		// mesh.computeTrivialConnection();
 
 
 		sectionIndex++;
@@ -1062,7 +1063,7 @@ auto tcodsChunkedGridMeshBuilder::_toMergedMeshData(ChunkGrid<float> &chunkGrid,
 	FIntVector minGridIndex = chunkGrid.gridIndexFromChunkIndex(minChunkIndex);
 	FIntVector maxGridIndex = chunkGrid.gridIndexFromChunkIndex(maxChunkIndex) + chunkGrid.chunkDimensions() - FIntVector(1,1,1);
 
-	const auto chunkGeometries = ChunkedMarchingCubes::marchingCubes_byChunk(isoLevel, chunkGrid, minGridIndex, maxGridIndex, uvScale, true, true);
+	const auto chunkGeometries = ChunkedMarchingCubes::dualMarchingCubes_byChunk(isoLevel, chunkGrid, minGridIndex, maxGridIndex, uvScale, true, true);
 
 	SmoothMeshFactory mergedFactory;
 
@@ -1079,12 +1080,17 @@ auto tcodsChunkedGridMeshBuilder::_toMergedMeshData(ChunkGrid<float> &chunkGrid,
 		mergedFactory.append(meshFactory);
 	}
 
+	// de-duplicate vertices
+	mergedFactory = mergedFactory.createMesh_withoutDuplicateVertices();
+
 	// remove duplicates
-	auto myMesh = _toMyMesh(mergedFactory);
+	//auto myMesh = _toMyMesh(mergedFactory);
 
-	_clean(myMesh.get());
+	//_clean(myMesh.get());
 
-	tcods::MeshIO::MeshData mergedData = _myMeshToMeshData(*myMesh.get());
+	//tcods::MeshIO::MeshData mergedData = _myMeshToMeshData(*myMesh.get());
+
+	auto mergedData = _toTcods(mergedFactory);
 
 	return mergedData;
 }
@@ -1119,6 +1125,7 @@ auto tcodsChunkedGridMeshBuilder::_buildSectionsFromMeshData(tcods::MeshIO::Mesh
 
 		sectionMesh.topologyChange();
 		sectionMesh.geometryChange();
+		// sectionMesh.computeTrivialConnection();
 	}
 
 	return meshes;

@@ -1215,7 +1215,7 @@ public:
 	{
 		auto objectIndex = _handleToObject.Find(handle);
 
-		checkfSlow(objectIndex != nullptr, TEXT("The object is not part of the edge storage."));
+		if (objectIndex == nullptr) return false;
 
 		return _objectIndexIsValid[*objectIndex];
 	}
@@ -1233,7 +1233,7 @@ public:
 
 		if (valid) _validSize--;
 
-		valid = false;
+		_objectIndexIsValid[index] = false;
 	}
 
 	void invalidate(FGraphEdgeHandle handle)
@@ -1246,7 +1246,7 @@ public:
 
 		if (valid) _validSize--;
 
-		valid = false;
+		_objectIndexIsValid[*index] = false;
 	}
 
 
@@ -1457,6 +1457,11 @@ struct TypedEdgeStorage : FEdgeStorage
 		return std::make_pair(std::reference_wrapper<TObject>(object), _objectIndexToHandle[i]);
 	}
 
+	FGraphEdgeHandle edge(size_t i)
+	{
+		return _objectIndexToHandle[i];
+	}
+
 	void swap(size_t objectIndexA, size_t objectIndexB)
 	{
 		Pool<TObject>& typedPool = static_cast<Pool<TObject>&>(pool);
@@ -1490,9 +1495,19 @@ struct TypedEdgeStorage : FEdgeStorage
 		std::vector<size_t> indices(_size);
 		std::iota(indices.begin(), indices.end(), 0);
 
-		std::sort(indices.begin(), indices.end(), [&typedPool, &predicate](size_t a, size_t b)
+		std::sort(indices.begin(), indices.end(), [&typedPool, &predicate, this](size_t a, size_t b)
 		{
-			return predicate(*typedPool.get(a), *typedPool.get(b));
+			bool aValid = isValid(a);
+			bool bValid = isValid(b);
+
+			if (aValid && bValid)
+				return predicate(*typedPool.get(a), *typedPool.get(b));
+			else if (aValid && !bValid)
+				return true;
+			else if (!aValid && bValid)
+				return false;
+			else 
+				return a < b;		
 		});
 
 		// apply the sorted indices to our containers
@@ -1550,6 +1565,11 @@ public:
 		return storage.isValid(&object);
 	}
 
+	bool isValid(int32 index)
+	{
+		return storage.isValid(index);
+	}
+
 	TEdgeObject& operator[](size_t i)
 	{
 		return storage[i];
@@ -1602,11 +1622,14 @@ public:
 
 		for (int32 i = 0; i < n; ++i)
 		{
-			auto pair = storage.at(i);
-			FGraphEdge& edge = edges[pair.second.index];
+			if (storage.isValid(i))
+			{
+				auto pair = storage.at(i);
+				FGraphEdge& edge = edges[pair.second.index];
 
-			if (edge.isValid())
-				func(pair.first, edge);
+				if (edge.isValid())
+					func(pair.first, edge);
+			}
 		}
 	}
 
@@ -1848,11 +1871,15 @@ public:
 		return rawEdgeStorage<TEdgeObject>().objectPtr(handle) != nullptr;
 	}
 
+	TArray<FGraphEdgeHandle> edgesBetweenNodes(FGraphNodeHandle a, FGraphNodeHandle b);
+
+	TArray<FGraphEdgeHandle> edgesBetweenNodes(TArray<FGraphNodeHandle>& nodes);
+
 	// -------------------------------------------------------------------------------
 	// Misc.
 	// -------------------------------------------------------------------------------
 
-	TArray<FGraphEdgeHandle> edgesBetweenNodes(TArray<FGraphNodeHandle>& nodes);
+
 
 	// returns all of the valid nodes
 	nodeIterator nodes() 
@@ -2036,6 +2063,20 @@ private:
 			for (auto& pair : other.removedComponents)
 			{
 				auto& handles = removedComponents[pair.first];
+
+				handles.insert(handles.end(), pair.second.begin(), pair.second.end());
+			}
+
+			for (auto& pair : other.removedEdgeObjects)
+			{
+				auto& handles = removedEdgeObjects[pair.first];
+
+				handles.insert(handles.end(), pair.second.begin(), pair.second.end());
+			}
+
+			for (auto& pair : other.addedEdgeObjects)
+			{
+				auto& handles = addedEdgeObjects[pair.first];
 
 				handles.insert(handles.end(), pair.second.begin(), pair.second.end());
 			}
@@ -2721,6 +2762,8 @@ inline void FGraphNode::removeComponent( FGraph& graph, ComponentType type )
 {
     FGraphObject * component = this->component( graph, type );
 
+	component->invalidate();
+
 	graph.componentRemoved( *this, type );
 
 	components.Remove( type );
@@ -2754,7 +2797,8 @@ inline void FGraphNode::each(FGraph& graph, Func func)
 
 			auto other = edge.other(handle());
 
-			func(other, *edgeObjectPtr);
+			if(edgeObjects.isValid(edgeHandle))
+				func(other, *edgeObjectPtr);
 		}
 	}
 }

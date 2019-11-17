@@ -2,7 +2,6 @@
 
 #include "LifeBrush.h"
 
-#include "RegionGrowingComponent.h"
 #include "WidgetComponent.h"
 #include "ElementEditor/DiscreteElementEditorComponent.h"
 #include "RegionGrowingGeneratorTool.h"
@@ -56,17 +55,10 @@ void USelectionTool::_tickGroupSelection(float dt, UPrimitiveComponent * hand)
 
 	FCollisionQueryParams params;
 
-	UActorComponent * root;
-	if (discreteEditorComponent)
-		root = discreteEditorComponent;
-	else
-		root = regionGrowingComponent;
-
-
-	params.AddIgnoredActor(root->GetOwner());
+	params.AddIgnoredActor(discreteEditorComponent->GetOwner());
 	params.AddIgnoredActor(hand->GetOwner());
 
-	bool overlap = root->GetWorld()->OverlapMultiByChannel(
+	bool overlap = discreteEditorComponent->GetWorld()->OverlapMultiByChannel(
 		overlaps,
 		hand->GetComponentLocation(),
 		hand->GetComponentRotation().Quaternion(),
@@ -134,16 +126,10 @@ void USelectionTool::_tickSelection(float dt, UPrimitiveComponent * hand)
 
 	FCollisionQueryParams params;
 
-	UActorComponent * root;
-	if (discreteEditorComponent)
-		root = discreteEditorComponent;
-	else
-		root = regionGrowingComponent;
-
-	params.AddIgnoredActor(root->GetOwner());
+	params.AddIgnoredActor(discreteEditorComponent->GetOwner());
 	params.AddIgnoredActor(hand->GetOwner());
 
-	bool overlap = root->GetWorld()->OverlapMultiByChannel(
+	bool overlap = discreteEditorComponent->GetWorld()->OverlapMultiByChannel(
 		overlaps,
 		hand->GetComponentLocation(),
 		hand->GetComponentRotation().Quaternion(),
@@ -259,10 +245,7 @@ void USelectionTool::gainFocus()
 		ISelectionToolDelegate::Execute_didChangeSelectionMode( widget, selectionMode, selectionMode );
 	}
 
-	if (!useGroupSelection)
-	{
-		clearSelection();
-	}
+	clearSelection();
 }
 
 std::vector<AElementActor*> USelectionTool::_toVector( TSet<AElementActor*> aSet )
@@ -279,11 +262,8 @@ void USelectionTool::loseFocus()
 {
 	std::vector<AElementActor*> vecA = _toVector( selectionA );
 
-	if(regionGrowingComponent)
-		regionGrowingComponent->updateExampleSelection( vecA, weightA );
-
 	if (generatorBrushTool && generatorBrushTool->generator())
-		generatorBrushTool->generator()->setSelection(vecA);
+		generatorBrushTool->generator()->setExampleSelection(vecA);
 
 	// hide the brush mesh component
 	if(_selectionMeshComponent)

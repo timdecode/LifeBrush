@@ -16,7 +16,7 @@ struct FTimStructBox;
 struct FGraph;
 struct FGraphNode;
 
-#ifdef  WITH_EDITOR
+#if  WITH_EDITOR
 #include "Editor.h"
 #include "EditorViewportClient.h"
 #include "LevelEditorViewport.h"
@@ -99,6 +99,7 @@ public:
 
 	static FString _nextActorLabelInSequence(FString baseName, UWorld * world)
 	{
+#if WITH_EDITOR
 		auto actors = world->PersistentLevel->Actors;
 
 		int32 maxCounter = 0;
@@ -127,6 +128,10 @@ public:
 		}
 
 		return baseName + FString::FromInt(maxCounter + 1);
+#else
+		return FString(TEXT("EditorOnly"));
+#endif
+
 	}
 
 	static URuntimeMeshComponent* duplicateRuntimeMeshComponentToActor(URuntimeMeshComponent * rmc, AActor * actor)
@@ -644,7 +649,7 @@ public:
             delete context, context = nullptr;
         
         bool editor = false;
-#ifdef  WITH_EDITOR
+#if  WITH_EDITOR
         editor = world->WorldType == EWorldType::Editor;
         if( editor )
         {
@@ -740,7 +745,7 @@ public:
     {
         bool editor = false;
 
-#ifdef WITH_EDITOR
+#if WITH_EDITOR
         editor = world->WorldType == EWorldType::Editor;
         if( editor )
         {

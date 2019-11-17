@@ -66,6 +66,7 @@ void UMeshSimulation::snapshotToActor(AActor * actor)
 		newInstance->SetCollisionProfileName(TEXT("NoCollision"));
 		newInstance->AttachToComponent(actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 		newInstance->SetRenderCustomDepth(instance->bRenderCustomDepth);
+		newInstance->SetCustomDepthStencilValue(instance->CustomDepthStencilValue);
 		newInstance->SetVisibility(instance->bVisible);
 
 		actor->AddInstanceComponent(newInstance);
@@ -107,7 +108,7 @@ void UMeshSimulation::updateInstances()
 	{
 		// if a mesh doesn't have a static mesh, or its invisible, we will skip it in the following loops
 		// as well
-		if (mesh.visible && mesh.staticMesh && mesh.isValid())
+		if (mesh.staticMesh && mesh.isValid())
 		{
 			UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
 
@@ -123,7 +124,7 @@ void UMeshSimulation::updateInstances()
 		else 
 			continue;
 
-		if (!mesh.desaturated)
+		if (!mesh.desaturated && mesh.visible)
 		{
 			UInstancedStaticMeshComponent * ismc = mesh._transientInstanceMesh;
 
@@ -132,7 +133,7 @@ void UMeshSimulation::updateInstances()
 			count++;
 		}
 
-		if (mesh.desaturated)
+		if (mesh.desaturated && mesh.visible)
 		{
 			UInstancedStaticMeshComponent * ismc = _desaturatedInstancedStaticMeshes[mesh];
 

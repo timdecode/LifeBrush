@@ -20,31 +20,25 @@ void UGraphSimulationManager::init(FGraph& graph_in, AActor& actor, bool autoIns
 	}
 }
 
-void UGraphSimulationManager::attachSimulations()
+void UGraphSimulationManager::attachAllSimulations()
 {
 	for (auto simulation : simulations)
-	{
-		if (GetWorld()->WorldType != EWorldType::Editor)
-			simulation->attach();
-		else if (simulation->canRunInEditor())
-			simulation->attach();
-	}
+		_attachSimulation(simulation);
 }
 
-void UGraphSimulationManager::detachSimulations()
+void UGraphSimulationManager::detachAllSimulations()
 {
-	for (auto simulation : simulations)
+	auto cachedAttachedSimulations = _attachedSimulations;
+
+	for (auto simulation : cachedAttachedSimulations)
 	{
-		if (GetWorld()->WorldType != EWorldType::Editor)
-			simulation->detach();
-		else if (simulation->canRunInEditor())
-			simulation->detach();
+		_detachSimulation(simulation);
 	}
 }
 
 void UGraphSimulationManager::begin()
 {
-	for (auto simulation : simulations)
+	for (auto simulation : _attachedSimulations)
 	{
 		simulation->begin();
 	}
@@ -69,13 +63,12 @@ void UGraphSimulationManager::_autoInstantiateSimulations()
 
 
 
-
 void UGraphSimulationManager::tick(float deltaT)
 {
 	_graph->tickCount++;
 
 	// tick the engines
-	for (auto engine : simulations)
+	for (auto engine : _attachedSimulations)
 	{
 		engine->tick(deltaT);
 	}
@@ -84,25 +77,28 @@ void UGraphSimulationManager::tick(float deltaT)
 void UGraphSimulationManager::tick_paused(float deltaT)
 {
 	// tick the engines
-	for (auto engine : simulations)
+	for (auto engine : _attachedSimulations)
 	{
-		engine->tick_paused(deltaT);
+		if( engine->simulationManager )
+			engine->tick_paused(deltaT);
 	}
 }
 
 void UGraphSimulationManager::didPause()
 {
-	for (auto engine : simulations)
+	for (auto engine : _attachedSimulations)
 	{
-		engine->didPause();
+		if (engine->simulationManager)
+			engine->didPause();
 	}
 }
 
 void UGraphSimulationManager::didResume()
 {
-	for (auto engine : simulations)
+	for (auto engine : _attachedSimulations)
 	{
-		engine->didResume();
+		if (engine->simulationManager)
+			engine->didResume();
 	}
 }
 
@@ -131,4 +127,44 @@ UObjectSimulation * UGraphSimulationManager::registerSimulation(TSubclassOf<UObj
 	simulation->simulationManager = this;
 
 	return simulation;
+}
+
+bool UGraphSimulationManager::isAttached(UObjectSimulation * simulation)
+{
+	return _attachedSimulations.Contains(simulation);
+}
+
+void UGraphSimulationManager::_attachSimulation(UObjectSimulation * simulation)
+{
+	checkf(simulations.Contains(simulation), TEXT("The simulation was not in the manager's simulations. The simulation must be registered first."));
+
+	// only attach simulations that can run in the editor
+	// or attach if we are in game mode
+	if ((GetWorld()->WorldType != EWorldType::Editor || simulation->canRunInEditor()) &&
+		!_attachedSimulations.Contains(simulation))
+	{
+		simulation->graph = _graph;
+		simulation->actor = _actor;
+		simulation->simulationManager = this;
+
+		simulation->attach();
+
+		_attachedSimulations.Add(simulation);
+	}
+}
+
+void UGraphSimulationManager::_detachSimulation(UObjectSimulation * simulation)
+{
+	checkf(simulations.Contains(simulation), TEXT("The simulation was not in the manager's simulations. The simulation must be registered first."));
+
+	if(	_attachedSimulations.Contains(simulation))
+	{
+		simulation->graph = _graph;
+		simulation->actor = _actor;
+		simulation->simulationManager = this;
+
+		simulation->detach();
+
+		_attachedSimulations.Remove(simulation);
+	}
 }

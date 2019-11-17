@@ -159,7 +159,7 @@ namespace cm
                iterator   end( void );
          const_iterator   end( void ) const;
 
-		 const Sparse& Sparse::operator=(const Sparse& other); // copies B;
+		 const Sparse& operator=(const Sparse& other); // copies B;
 
       protected:
          Common& common;

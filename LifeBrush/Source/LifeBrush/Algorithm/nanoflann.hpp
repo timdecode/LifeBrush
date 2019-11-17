@@ -1956,7 +1956,7 @@ namespace nanoflann {
 			}
 
 			/**
-			* Find all the neighbors to \a query_point[0:dim-1] within a maximum radius.
+			* Find all the neighbors to \a query_point[0:dim-1] within a maximum radius (squared, Tim, I think).
 			*  The output is given as a vector of pairs, of which the first element is a point index and the second the corresponding distance.
 			*  Previous contents of \a IndicesDists are cleared.
 			*

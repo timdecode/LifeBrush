@@ -317,7 +317,7 @@ void UMeshCollectionTool::didPlace_Implementation(UGrabTool * grabTool, AActor *
 	_draggingActor = nullptr;
 	_draggingCell = nullptr;
 
-	AActor * exemplar = _elementEditor->exemplarActor();
+	AActor * exemplar = _elementEditor->exemplarActor;
 
 	if (!exemplar)
 	{

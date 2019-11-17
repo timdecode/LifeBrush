@@ -16,31 +16,32 @@
 #include "DiscreteElementEditorComponent.generated.h"
 
 class UElementGenerator;
+class UFlexSimulationComponent;
 struct OutputDomainExport;
 struct FGraphSnapshot;
 class UChunkedVolumeComponent;
+struct FFlexSimulation;
 
+// Manages UElementGenerators that interface with a UFlexSimulationComponent.
+// 
+// This component requires a UFlexSimulationComponent sibling.
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class LIFEBRUSH_API UDiscreteElementEditorComponent : public UGraphComponent
+class LIFEBRUSH_API UDiscreteElementEditorComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	std::unique_ptr<SynthesisContext> context;
-
-	UCameraComponent * camera;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	FBox limits = FBox(EForceInit::ForceInitToZero);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	bool drawLimits = false;
-
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "ShipEditor")
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "LifeBrush")
 	TArray<UElementGenerator*> generators;
 
+	// The host actor for the UFlexSimulationComponent. If this is not set, we'll look at our own
+	// parent to find one. The VRSketchyPawn will set this if it has a reference to this component's actor.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	FNvFlexParameters flexParams;
+	AActor * simulationActor = nullptr;
+
+	// This will be set by the VRSketchyPawn.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	AActor * exemplarActor = nullptr;
 
 protected:
 	UElementGenerator * _generator;
@@ -49,7 +50,6 @@ protected:
 
 	bool _paused = false;
 
-	std::unique_ptr<FFlexSimulation> _flexSimulation;
 
 	UPROPERTY(EditDefaultsOnly, Category="ComponentTick")
 	struct FActorComponentTickFunction PrePhysicsTick;
@@ -76,7 +76,10 @@ public:
 	template<typename GeneratorType>
 	GeneratorType* generator();
 
-	AActor * exemplarActor();
+	UFlexSimulationComponent * flexSimulationComponent();
+	FFlexSimulation * flexSimulation();
+
+	SynthesisContext * context();
 
 	void stop();
 	void start();
@@ -87,22 +90,22 @@ public:
 
 
 protected:
-	void _initContextAndGraph();
-
 	void _init();
+
+	void _autoInstantiateGenerators();
+
+	void _initDependencies(UElementGenerator* generator,
+		TSet<UElementGenerator*>& initialized, 
+		TMap<UClass*, UElementGenerator*>& classToGenerator);
+
+	UElementGenerator * _registerGenerator(TSubclassOf<UElementGenerator> generatorClass);
 
 	virtual void RegisterComponentTickFunctions(bool bRegister) override;
 
 protected:
-	// Limits Drawing
-	// --------------
-	void _updateLimits();
-	void _updateDrawLimits();
-	void _drawLimits();
-	void _hideLimits();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UBoxComponent * _limitsBoxComponent = nullptr;
+
+
 };
 
 template<typename GeneratorType>
@@ -116,5 +119,5 @@ GeneratorType* UDiscreteElementEditorComponent::generator()
 			return static_cast<GeneratorType*>(e);
 	}
 
-	return nullptr;
+	return static_cast<GeneratorType*>(_registerGenerator(generatorClass));
 }

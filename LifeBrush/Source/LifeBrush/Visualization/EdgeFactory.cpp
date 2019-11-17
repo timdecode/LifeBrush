@@ -115,34 +115,7 @@ void ULineFactory::processElements(TArray<LineElement> lineSegments, FVector upN
 
 void UColoredLineFactory::commitWithFastPathOption(FColoredLineBuilder& builder, int32 section, UMaterialInterface * material_in /*= nullptr*/, bool topologyDidChange /*= true*/)
 {
-
-	//auto quadFactory = builder.createQuadFactory(uvBottomY, uvTopY, uvXScale);
-
-	//auto simple = builder.createSimple();
-
-	//if (topologyDidChange)
-	//{
-	//	_runtimeMeshComponent->ClearMeshSection(section);
-
-	//	_runtimeMeshComponent->SetMeshSectionCollisionEnabled(section, false);
-
-	//	TArray<int32> triangles;
-	//	triangles.SetNumUninitialized(simple.Num());
-	//	for (int i = 0; i < simple.Num(); ++i)
-	//		triangles[i] = i;
-
-	//	_runtimeMeshComponent->CreateMeshSectionDualBuffer(section, simple, simple, triangles, false, EUpdateFrequency::Frequent);
-	//
-	//	_runtimeMeshComponent->SetMeshSectionCastsShadow(section, true);
-	//	_runtimeMeshComponent->SetMaterial(section, material_in ? material_in : material);
-	//}
-	//else
-	//{
-	//	_runtimeMeshComponent->UpdateMeshSectionDualBuffer(section, quadFactory.vertices);
-	//}
-
-
-	if (topologyDidChange)
+	if (topologyDidChange || !_runtimeMeshComponent->DoesSectionExist(section) )
 	{
 		meshBuilder = MakeRuntimeMeshBuilder(false, false, 1, true);
 		
@@ -157,10 +130,6 @@ void UColoredLineFactory::commitWithFastPathOption(FColoredLineBuilder& builder,
 	}
 	else
 	{
-
-		//_runtimeMeshComponent->UpdateMeshSection(section, meshBuilder);
-
-
 		FRuntimeMeshData& meshData = _runtimeMeshComponent->GetOrCreateRuntimeMesh()->GetRuntimeMeshData().Get();
 
 		auto meshThing = meshData.BeginSectionUpdate(section);
@@ -169,35 +138,6 @@ void UColoredLineFactory::commitWithFastPathOption(FColoredLineBuilder& builder,
 
 		meshThing->Commit(true, true, false, false, false);
 	}
-
-	// RMC:
-	// 		GetOrCreateRuntimeMesh()->UpdateMeshSection(SectionIndex, Vertices, Triangles, Normals, UV0, UV1, Colors, Tangents, UpdateFlags);
-	// 
-	// URuntimeMesh:
-	// 		GetRuntimeMeshData()->UpdateMeshSection(SectionId, MeshData, UpdateFlags);
-	//
-	// FRuntimeMeshData:
-	//SCOPE_CYCLE_COUNTER(STAT_RuntimeMesh_UpdateMeshSection_MeshData);
-
-	//FRuntimeMeshScopeLock Lock(SyncRoot);
-
-	//CheckUpdate(MeshData->IsUsingHighPrecisionTangents(), MeshData->IsUsingHighPrecisionUVs(), MeshData->NumUVChannels(), MeshData->IsUsing32BitIndices(), SectionId, true, true, true);
-
-	//FRuntimeMeshSectionPtr Section = MeshSections[SectionId];
-
-	//ERuntimeMeshBuffersToUpdate BuffersToUpdate = ERuntimeMeshBuffersToUpdate::AllVertexBuffers | ERuntimeMeshBuffersToUpdate::IndexBuffer;
-
-	//Section->UpdatePositionBuffer(MeshData->GetPositionStream(), false);
-	//Section->UpdateTangentsBuffer(MeshData->GetTangentStream(), false);
-	//Section->UpdateUVsBuffer(MeshData->GetUVStream(), false);
-	//Section->UpdateColorBuffer(MeshData->GetColorStream(), false);
-	//Section->UpdateIndexBuffer(MeshData->GetIndexStream(), false);
-
-	//UpdateSectionInternal(SectionId, BuffersToUpdate, UpdateFlags);
-
-
-
-
 }
 
 void UColoredLineFactory::commitSection(FColoredLineBuilder& lineBuilder, int32 section, UMaterialInterface * material_in, bool topologyDidChange)

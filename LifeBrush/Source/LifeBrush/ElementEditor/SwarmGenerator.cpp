@@ -7,6 +7,8 @@
 #include "Simulation/MeshFilamentSimulation.h"
 #include "ShipEditorSimulation/MeshSimulation.h"
 #include "Simulation/FlexElements.h"
+#include "MolecularLego/MolecularLego_Relaxation.h"
+#include "Simulation/Brownian.h"
 
 void USwarmGenerator::attach(SynthesisContext * context, UGraphSimulationManager * simulationManager)
 {
@@ -17,50 +19,41 @@ void USwarmGenerator::attach(SynthesisContext * context, UGraphSimulationManager
 	_graph = &context->graph();
 
 	UMeshSimulation * meshSim = _simulationManager->registerSimulation<UMeshSimulation>();
-	meshSim->attach();
 
 	USwarmSimulation * swarmSim = _simulationManager->registerSimulation<USwarmSimulation>();
-	swarmSim->minNC1Separation = minNC1Separation;
-	swarmSim->radius_segment = radius_segment;
-	swarmSim->scaleFactor_segment = scaleFactor_segment;
-	swarmSim->material_segment = material_segment;
-	swarmSim->staticMesh_segment = staticMesh_segment;
-
-	swarmSim->radius_7S = radius_7S;
-	swarmSim->scaleFactor_7S = scaleFactor_7S;
-	swarmSim->material_7S = material_7S;
-	swarmSim->staticMesh_7S = staticMesh_7S;
-
 	UMeshFilamentSimulation * filamentSim = _simulationManager->registerSimulation<UMeshFilamentSimulation>();
-	filamentSim->attach();
 
-	rand.GenerateNewSeed();
+	_simulationManager->registerSimulation<USingleParticleBrownianSimulation>();
+	_simulationManager->attachSimulation<USingleParticleBrownianSimulation>();
 
-	_reloadBVH();
+	_simulationManager->registerSimulation<UStaticPositionSimulation>();
+	_simulationManager->attachSimulation<UStaticPositionSimulation>();
+
+	_simulationManager->attachAllSimulations();
+
+	flexSimulation->play();
+
 }
 
 void USwarmGenerator::detach()
 {
 	Super::detach();
 
-	UMeshSimulation * meshSim = _simulationManager->registerSimulation<UMeshSimulation>();
-
-	meshSim->detach();
-
-	_simulationManager->detachSimulations();
+	flexSimulation->pause();
 }
 
+
 void USwarmGenerator::flexTick(
-	float deltaT, 
-	NvFlexVector<int>& neighbourIndices, 
-	NvFlexVector<int>& neighbourCounts, 
-	NvFlexVector<int>& apiToInternal, 
-	NvFlexVector<int>& internalToAPI, 
+	float deltaT,
+	NvFlexVector<int>& neighbourIndices,
+	NvFlexVector<int>& neighbourCounts,
+	NvFlexVector<int>& apiToInternal,
+	NvFlexVector<int>& internalToAPI,
 	int maxParticles)
 {
 }
 
-FQuat USwarmGenerator::_randomQuat()
+FQuat USwarmSimulation::randomQuat()
 {
 	FVector axis = rand.GetUnitVector();
 	float angle = rand.GetFraction() * M_PI * 2.0f;
@@ -75,31 +68,12 @@ void USwarmGenerator::beginBrushPath(FVector point, float radius, FSurfaceIndex 
 
 void USwarmGenerator::addBrushPoint(FVector point, float radius, FSurfaceIndex surfaceIndex /*= FSurfaceIndex::OffSurface*/)
 {
-	bool hit = false;
+	USwarmSimulation * swarmSimulation = _simulationManager->simulation<USwarmSimulation>();
 
-	decltype(_spaceBVH)::AABB_t query(&point.X, minNC1Separation * .3f);
+	FVector localPoint = flexSimulationComponent->GetOwner()->GetTransform().InverseTransformPosition(point);
 
-	_spaceBVH.query(query, [&hit](unsigned int particleIndex) {
-		hit = true;
-
-		return false; // don't continue
-	});
-
-	if (hit)
-		return;
-
-	flexSimulation->addTickWork([&, point]() {
-		_reloadBVH();
-
-		_graph->beginTransaction();
-
-		if (brushType == ESwarmGenerator_BrushType::Star)
-			_createStar(point, _randomQuat());
-		else if (brushType == ESwarmGenerator_BrushType::Anchor)
-			_createAnchor(point, FQuat::Identity);
-
-		_graph->endTransaction();
-	});
+	if( swarmSimulation)
+		swarmSimulation->addBrushPoint(localPoint, brushType);
 }
 
 void USwarmGenerator::endBrushPath()
@@ -107,132 +81,118 @@ void USwarmGenerator::endBrushPath()
 
 }
 
-FGraphNodeHandle USwarmGenerator::_createAnchor(FVector position, FQuat orientation)
+void USwarmGenerator::setPrototype(FGraphNodeHandle exampleHandle)
 {
-	FGraphNodeHandle anchorHandle = _graph->node(_graph->addNode(position, orientation, radius_NC1 * scaleFactor_NC1));
+	_brushExampleHandle = exampleHandle;
+
+	USwarmSimulation * swarmSimulation = _simulationManager->simulation<USwarmSimulation>();
+	swarmSimulation->setBrushPrototypoe(_brushExampleHandle);
+}
+
+
+FGraphNodeHandle USwarmSimulation::_createAnchor(FVector position, FQuat orientation)
+{
+	FGraphNodeHandle anchorHandle = graph->node(graph->addNode(position, orientation, radius_NC1 * scaleFactor_NC1));
 	{
 		// the star node is only guaranteed to point to valid memory in this block, where we haven't
 		// added any nodes to the graph
-		FGraphNode& anchorNode = anchorHandle(*_graph);
+		FGraphNode& anchorNode = anchorHandle(*graph);
 
-		_spaceBVH.insertParticle(anchorNode.id, &anchorNode.position.X, radius_NC1);
+		_spaceBVH.insertParticle(anchorNode.id, anchorNode.position, radius_NC1);
 
-		FGraphMesh& mesh = anchorNode.addComponent<FGraphMesh>(*_graph);
+		FGraphMesh& mesh = anchorNode.addComponent<FGraphMesh>(*graph);
 
 		mesh.material = material_NC1;
 		mesh.staticMesh = staticMesh_NC1;
 
-		FBoid& boid = anchorNode.addComponent<FBoid>(*_graph);
+		FBoid& boid = anchorNode.addComponent<FBoid>(*graph);
 		boid.radius = radius_NC1;
 
-		anchorNode.addComponent<FStaticPositionObject>(*_graph).position = position;
-		anchorNode.addComponent<FFlexParticleObject>(*_graph);
-		anchorNode.addComponent<FBoidStar>(*_graph);
-		anchorNode.addComponent<FBoidSeeker>(*_graph);
+		anchorNode.addComponent<FStaticPositionObject>(*graph).position = position;
+		anchorNode.addComponent<FFlexParticleObject>(*graph);
+		anchorNode.addComponent<FBoidStar>(*graph);
+		anchorNode.addComponent<FBoidSeeker>(*graph);
 	}
 
 	return anchorHandle;
 }
 
-FGraphNodeHandle USwarmGenerator::_createStar(FVector position, FQuat orientation)
+void USwarmSimulation::_applyStar(FGraphNodeHandle starHandle)
 {
-	FGraphNodeHandle starHandle = _graph->node(_graph->addNode(position, orientation, radius_NC1 * scaleFactor_NC1));
+	FGraphNode starNode = starHandle(*graph);
+
+	FBoidStar * boidStar = graph->componentPtr<FBoidStar>(starHandle);
+
+	FSGStarRule * starRule = ruleGraph.componentPtr<FSGStarRule>(boidStar->_exemplarPrototype);
+
+	FBoidRootNode * boidRoot = graph->componentPtr<FBoidRootNode>(starHandle);
+	FGraphNodeHandle rootNode = boidRoot ? boidRoot->rootNode : FGraphNodeHandle::null;
+
+	if (!starRule) return;
+
+	FVector forward = starNode.orientation.RotateVector(FVector::ForwardVector);
+
+	TArray<FGraphNodeHandle> ring;
+
+	for (int i = 0; i < starRule->branches.Num(); ++i)
 	{
-		// the star node is only guaranteed to point to valid memory in this block, where we haven't
-		// added any nodes to the graph
-		FGraphNode& starNode = starHandle(*_graph);
+		FSGStarBranchEntry& branch = starRule->branches[i];
+		FGraphNodeHandle prototypeHandle = starRule->handlesForBranches[i];
 
-		_spaceBVH.insertParticle(starNode.id, &starNode.position.X, radius_NC1);
+		if (!prototypeHandle) continue;
 
-		FGraphMesh& mesh = starNode.addComponent<FGraphMesh>(*_graph);
+		FGraphNode prototypeNode = ruleGraph.node(prototypeHandle);
 
-		mesh.material = material_NC1;
-		mesh.staticMesh = staticMesh_NC1;
+		FVector dir = starNode.orientation.RotateVector(branch.direction);
 
-		FBoid& boid = starNode.addComponent<FBoid>(*_graph);
-		boid.radius = radius_NC1;
+		FVector position = starNode.position + dir;
+		FQuat rotation = FQuat::FindBetween(forward, dir) * prototypeNode.orientation;
 
-		starNode.addComponent<FFlexParticleObject>(*_graph);
-		starNode.addComponent<FVelocityGraphObject>(*_graph);
-		starNode.addComponent<FBoidStar>(*_graph);
-	}
+		FGraphNodeHandle newHandle = copyElement(prototypeHandle, ruleGraph, *graph, position, rotation, rootNode);
 
-	const std::array<FQuat, 4> orientations = {
-		FQuat(FVector::ForwardVector, M_PI * (0.0f / 2.0f)),
-		FQuat(FVector::ForwardVector, M_PI * (1.0f / 2.0f)),
-		FQuat(FVector::ForwardVector, M_PI * (2.0f / 2.0f)),
-		FQuat(FVector::ForwardVector, M_PI * (3.0f / 2.0f))
-	};
+		ring.Add(newHandle);
 
-	const float offset = radius_segment + radius_NC1;
+		FGraphNode& newNode = graph->node(newHandle);
 
-	for (FQuat localRotation : orientations)
-	{
-		FQuat newOrientation = orientation * localRotation;
-
-		FVector dir = newOrientation * FVector::RightVector;
-
-		FGraphNodeHandle wanderer = _createWanderer(position + dir * offset, newOrientation);
-
-		FBoidGenerator& generator = wanderer(_graph).component<FBoidGenerator>(*_graph);
+		if (newNode.hasComponent<FBoidGenerator>())
 		{
+			FBoidGenerator& generator = newNode.component<FBoidGenerator>(*graph);
+
 			generator.last = starHandle;
 			generator.starNode = starHandle;
+
+			generator.currentDistance = generator.segmentLength;
 		}
 
-
-		float length = FVector::Dist(wanderer(_graph).position, position);
-		_graph->connectNodes<FFlexConnection>(starHandle, wanderer, length, 0.9f);
-	}
-
-	return starHandle;
-}
-
-FGraphNodeHandle USwarmGenerator::_createWanderer(FVector position, FQuat orientation)
-{
-	FGraphNode& wandererNode = _graph->node(_graph->addNode(position, orientation, radius_segment * scaleFactor_segment));
-
-	_spaceBVH.insertParticle(wandererNode.id, &wandererNode.position.X, radius_segment);
-
-	FGraphMesh& mesh = wandererNode.addComponent<FGraphMesh>(*_graph);
-
-	mesh.material = material_segment;
-	mesh.staticMesh = staticMesh_segment;
-
-	FBoid& boid = wandererNode.addComponent<FBoid>(*_graph);
-	boid.radius = radius_segment;
-
-	FFlexParticleObject& particle = wandererNode.addComponent<FFlexParticleObject>(*_graph);
-	particle.group = 1;
-
-	wandererNode.addComponent<FVelocityGraphObject>(*_graph);
-
-	FBoidGenerator& boidGenerator = wandererNode.addComponent<FBoidGenerator>(*_graph);
-	{
-		boidGenerator.maxCount = 10;
-		boidGenerator.filamentGroup = _simulationManager->simulation<UMeshFilamentSimulation>()->nextGroup();
+		// shoot it in a direction
+		FVelocityGraphObject& velocity = newNode.addComponent<FVelocityGraphObject>(*graph);
+		velocity.linearVelocity = dir * 8.0f;
 	}
 
 
-	FRandomWalkGraphObject& walker = wandererNode.addComponent<FRandomWalkGraphObject>(*_graph);
-
-	return wandererNode.handle();
 }
 
-void USwarmGenerator::_reloadBVH()
+void USwarmSimulation::_updateBVH()
 {
-	_spaceBVH.removeAll();
-
-	auto& storage = _graph->componentStorage<FBoid>();
+	auto& storage = graph->componentStorage<FBoid>();
 
 	for (FBoid& boid : storage)
 	{
-		if (!boid.isValid())
-			continue;
+		auto particleIndex = boid.nodeHandle().index;
 
-		FGraphNode& node = _graph->node(boid.nodeHandle());
+		FGraphNode& node = graph->node(boid.nodeHandle());
 
-		_spaceBVH.insertParticle(boid.nodeIndex, &node.position.X, boid.radius);
+		if (!boid.isValid() && _spaceBVH.containsParticle(particleIndex))
+		{
+			_spaceBVH.removeParticle(particleIndex);
+		}
+		else
+		{
+			if (_spaceBVH.containsParticle(particleIndex))
+				_spaceBVH.updateParticle(particleIndex, node.position, boid.radius);
+			else
+				_spaceBVH.insertParticle(particleIndex, node.position, boid.radius);
+		}
 	}
 }
 
@@ -252,6 +212,18 @@ void USwarmGenerator::_reloadBVH()
 
 
 
+
+void USwarmSimulation::setBrushPrototypoe(FGraphNodeHandle handle)
+{
+	_brushPrototype = handle;
+}
+
+void USwarmSimulation::attach()
+{
+	_initRuleGraph();
+	
+	_readRuleGraph();
+}
 
 void USwarmSimulation::begin()
 {
@@ -259,6 +231,10 @@ void USwarmSimulation::begin()
 		_attachSegmentMeshes();
 	else
 		_detachSegmentMeshes();
+
+	rand.GenerateNewSeed();
+
+	_updateBVH();
 }
 
 void USwarmSimulation::detach()
@@ -301,168 +277,288 @@ void USwarmSimulation::_detachSegmentMeshes()
 	}
 }
 
-void USwarmSimulation::tick(float deltaT)
+void USwarmSimulation::_initRuleGraph()
 {
-
+	ruleGraph.init();
 }
 
-void USwarmSimulation::flexTick(float deltaT, NvFlexVector<int>& neighbourIndices, NvFlexVector<int>& neighbourCounts, NvFlexVector<int>& apiToInternal, NvFlexVector<int>& internalToAPI, int maxParticles)
+void USwarmSimulation::_readRuleGraph()
+{
+	_nameToRuleHandles.Empty();
+
+	// load the name to rule handle table
+	auto& ruleTypes = ruleGraph.componentStorage<FSGRuleTypeName>();
+
+	for (FSGRuleTypeName& ruleType : ruleTypes)
+	{
+		_nameToRuleHandles.Add(ruleType.typeName, ruleType.nodeHandle());
+	}
+
+	// load our rule prototypes
+	_readStars();
+}
+
+void USwarmSimulation::_readStars()
+{
+	auto& ruleTypes = ruleGraph.componentStorage<FSGRuleTypeName>();
+
+	auto& starPrototypes = ruleGraph.componentStorage<FSGStarRule>();
+
+	for (FSGStarRule& starPrototype : starPrototypes)
+	{
+		starPrototype.handlesForBranches.Empty();
+		
+		for (FSGStarBranchEntry branch : starPrototype.branches)
+		{
+			FGraphNodeHandle handle = _nameToRuleHandles.FindOrAdd(branch.typeName);
+
+			starPrototype.handlesForBranches.Add(handle);
+		}
+	}
+
+	// cache the sequences
+	auto& filamentRules = ruleGraph.componentStorage<FSGFilamentRule>();
+
+	for(FSGFilamentRule& rule : filamentRules)
+	{
+		rule.headHandles = _parseSequence(rule.headSequence);
+		rule.bodyHandles = _parseSequence(rule.bodySequence);
+		rule.tailHandles = _parseSequence(rule.tailSequence);
+	}
+}
+
+TArray<FGraphNodeHandle> USwarmSimulation::_parseSequence(FString sequence)
+{
+	TArray<FString> headNames;
+	sequence.ParseIntoArray(headNames, TEXT(","));
+
+	TArray<FGraphNodeHandle> handles;
+
+	for (FString& stringName : headNames)
+	{
+		FName name(*stringName);
+
+		FGraphNodeHandle * headPrototype = _nameToRuleHandles.Find(name);
+
+		if (!headPrototype) continue;
+
+		handles.Add(*headPrototype);
+	}
+
+	return handles;
+}
+
+void USwarmSimulation::tick(float deltaT)
 {
 	graph->beginTransaction();
+
+
+	for (auto& brushPoint : _brushPoints)
+	{
+		bool hit = false;
+
+		unrealAABB::AABB query(brushPoint.point, brushSpacing);
+
+		_spaceBVH.query(query, [&hit](unsigned int particleIndex) {
+			hit = true;
+
+			return false; // don't continue
+		});
+
+		if (hit)
+			continue;;
+
+		_updateBVH();
+
+		if (_brushPrototype)
+		{
+			FVector point = brushPoint.point;
+			FQuat rotation = randomQuat();
+
+			FGraphNodeHandle handle = copyElement(_brushPrototype, ruleGraph, *graph, point, rotation, FGraphNodeHandle::null);
+		}
+	}
+
+	_brushPoints.clear();
+
+	_tickFilamentAnchors(deltaT);
 
 	_tickBoidStars(deltaT);
 
 	_tickBoidGenerators();
 
 	_tickBoidSeekers(deltaT);
-	//_tickBoidSeekersFlexNeighbours(maxParticles, apiToInternal, neighbourCounts, internalToAPI, neighbourIndices);
 
 
 	graph->endTransaction();
 }
 
-void USwarmSimulation::_tickBoidStars(float deltaT)
+FGraphNodeHandle USwarmSimulation::copyElement(
+	FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph,
+	FGraph& targetGraph,
+	const FVector position,
+	const FQuat rotation_in, 
+	FGraphNodeHandle boidRootNode)
 {
-	_loadStarBVH();
+	FGraphNodeHandle result = FGraphCopyContext::copyAggregate(sourceNodeHandle, sourceGraph, targetGraph, position, rotation_in);
 
-	auto& storage = graph->componentStorage< FBoidStar>();
+	// convert rules into agents
+	// all rules also get a boid node so we can track them in the BVH
+	FGraphNode& node = targetGraph.node(result);
 
-	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+	float defaultBoidRadius = radius_segment;
 
-	for (FBoidStar& star : storage)
+	auto addBoid = [&targetGraph, defaultBoidRadius](FGraphNode& node) {
+		FBoid * boid = targetGraph.componentPtr<FBoid>(node.handle());
+
+		if (!boid)
+		{
+			boid = &node.addComponent<FBoid>(targetGraph);
+			boid->radius = defaultBoidRadius;
+		}
+
+		return boid;
+	};
+
+	// add a FBoidStar
+	if (node.hasComponent<FSGStarRule>())
 	{
-		if( !star.isValid() )
-			continue;
+		FBoidStar& boidStar = node.addComponent<FBoidStar>(targetGraph);
 
-		FGraphNode& node = graph->node(star.nodeHandle());
+		boidStar._exemplarPrototype = sourceNodeHandle;
 
-		FVelocityGraphObject * velocity = velocities.componentPtrForNode(star.nodeHandle());
+		node.removeComponent<FSGStarRule>(targetGraph);
 
-		if( !velocity )
-			continue;
-
-		decltype(_starBVH)::AABB_t query(&node.position.X, minNC1Separation);
-
-		_starBVH.query(query, [&](unsigned int particleIndex) {
-			FGraphNodeHandle handle(particleIndex);
-
-			if (handle == star.nodeHandle())
-				return true;
-
-			FGraphNode& particleNode = graph->node(handle);
-
-			FVector dir = particleNode.position - node.position;
-			float length = dir.Size();
-			dir = dir.GetSafeNormal();
-
-			if (length < minNC1Separation)
-			{
-				// approximate a spring
-				float hookLength = minNC1Separation - length;
-			
-				const float c = 10.0f;
-
-				velocity->linearVelocity += -dir * hookLength * c * deltaT;
-			}
-
-			return true; // continue
-		});
+		addBoid(node);
 	}
+
+	// add an FBoidGenerator
+	if (FSGFilamentRule * filamentRule = targetGraph.componentPtr<FSGFilamentRule>(node.handle()))
+	{
+		FBoidGenerator& boidGenerator = node.addComponent<FBoidGenerator>(targetGraph);
+
+		boidGenerator._exemplarPrototype = sourceNodeHandle;
+		boidGenerator.filamentRadius = filamentRule->radius;
+		boidGenerator.segmentLength = filamentRule->segmentLength;
+
+		node.removeComponent<FSGFilamentRule>(targetGraph);
+
+		addBoid(node);
+	}
+
+	if (FBoid * boid = targetGraph.componentPtr<FBoid>(node.handle()))
+	{
+		_spaceBVH.insertParticle(node.id, node.position, boid->radius);
+	}
+
+	// add the root node, and if there isn't one, we are the one.
+	if (!boidRootNode)
+		boidRootNode = result;
+
+	node.addComponent<FBoidRootNode>(targetGraph, boidRootNode);
+
+	return result;
 }
 
-
-void USwarmSimulation::_tickBoidSeekersFlexNeighbours(int maxParticles, NvFlexVector<int>& apiToInternal, NvFlexVector<int>& neighbourCounts, NvFlexVector<int>& internalToAPI, NvFlexVector<int>& neighbourIndices)
+void USwarmSimulation::addBrushPoint(FVector point, ESwarmGenerator_BrushType type)
 {
-	const int stride = maxParticles;
+	_brushPoints.emplace_back();
 
-	float bindingDistSqrd = std::pow(radius_segment * 2.0f, 2.0f);
+	auto& brushPoint = _brushPoints.back();
 
-	auto& seekerStorage = graph->componentStorage<FBoidSeeker>();
-	auto& velocityStorage = graph->componentStorage<FVelocityGraphObject>();
+	brushPoint.point = point;
+	brushPoint.type = type;
+}
 
-	for (FBoidSeeker& seeker : seekerStorage)
+void USwarmSimulation::_tickFilamentAnchors(float deltaT)
+{
+	auto& anchors = graph->componentStorage<FSGFilamentAnchor>();
+	auto& boidGenerators = graph->componentStorage<FBoidGenerator>();
+
+	TArray<FGraphNodeHandle> toRemove;
+
+	// instantiate SGFilaments from our anchors
+	for (FSGFilamentAnchor& anchor : anchors)
 	{
-		if (!seeker.isValid())
-			continue;
+		if (!anchor.isValid()) continue;
+		
+		FGraphNodeHandle * prototype = _nameToRuleHandles.Find(anchor.filamentRuleName);
 
-		FGraphNode& seekerNode = graph->node(seeker.nodeHandle());
-
-		int flexIndex = apiToInternal[seeker.nodeIndex];
-		int neighborCount = neighbourCounts[flexIndex];
-
-		// find the nearest
-		float minDistanceSqrd = std::numeric_limits<float>::max();
-		FGraphNodeHandle minNodeHandle = FGraphNodeHandle::null;
+		if (prototype)
 		{
-			FVector p = seekerNode.position;
+			FGraphNode& anchorNode = graph->node(anchor.nodeHandle());
 
-			for (int ni = 0; ni < neighborCount; ++ni)
+			FQuat rotation = anchorNode.orientation;
+
+			FVector dir = rotation.RotateVector(FVector::ForwardVector);
+			FVector up = rotation.RotateVector(FVector::UpVector);
+
+
+			FVector position = anchorNode.position + dir;
+
+			FGraphNodeHandle instantiatedHandle = copyElement(*prototype, ruleGraph, *graph, position, rotation, anchor.nodeHandle());
+
+			if (FBoidGenerator * generator = boidGenerators.componentPtrForNode(instantiatedHandle))
 			{
-				FGraphNodeHandle neighborNodeHandle = FGraphNodeHandle(internalToAPI[neighbourIndices[ni*stride + flexIndex]]);
+				generator->last = anchor.nodeHandle();
 
-				if (neighborNodeHandle == seeker.nodeHandle())
-					continue;
+				// add a particle to the anchor if it doesn't have one
+				FGraphNode& anchorNode = graph->node(anchor.nodeHandle());
 
-				FBoidSeeker * neighbourSeeker = seekerStorage.componentPtrForNode(neighborNodeHandle);
+				if (!anchorNode.hasComponent<FFlexParticleObject>())
+					anchorNode.addComponent<FFlexParticleObject>(*graph);
 
-				if (!neighbourSeeker || !neighbourSeeker->isValid())
-					continue;
+				FGraphNode& generatorNode = graph->node(instantiatedHandle);
 
-				// don't connect seekers in the same star
-				if( neighbourSeeker->starNode == seeker.starNode )
-					continue;
-
-				FGraphNode& node = graph->node(neighborNodeHandle);
-
-				float distSqrd = (node.position - p).SizeSquared();
-
-				if (distSqrd < minDistanceSqrd)
-				{
-					minDistanceSqrd = distSqrd;
-					minNodeHandle = neighborNodeHandle;
-				}
+				FVelocityGraphObject& generatorVelocity = generatorNode.addComponent<FVelocityGraphObject>(*graph);
+				generatorVelocity.linearVelocity = up * 5.0f;
 			}
 		}
 
-		if (minNodeHandle)
+		// we either instantiated the anchor, of there wasn't one. Time to die.
+		toRemove.Add(anchor.nodeHandle());
+	}
+
+	// cleanup
+	for (FGraphNodeHandle handle : toRemove)
+	{
+		graph->node(handle).removeComponent<FSGFilamentAnchor>(*graph);
+	}
+}
+
+void USwarmSimulation::_tickBoidStars(float deltaT)
+{
+	auto& boidStars = graph->componentStorage< FBoidStar>();
+
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+	for (FBoidStar& star : boidStars)
+	{
+		if (!star.isValid())
+			continue;
+
+		if (!star._didApply)
 		{
-			FGraphNode& neighbourNode = graph->node(minNodeHandle);
+			_applyStar(star.nodeHandle());
+			star._didApply = true;
+		}
 
-			FBoidSeeker * neighbourSeeker = seekerStorage.componentPtrForNode(minNodeHandle);
+		// build the star ring, if it's ready (the generators have added the first elements)
+		if (star._inProgressRing.Num() == star.targetRingSize && star.targetRingSize > 0)
+		{
+			// connect the nodes in the ring, so they point away from each other
+			auto& ring = star._inProgressRing;
 
-			// attract to the neighbor
-			FVelocityGraphObject * velocity = velocityStorage.componentPtrForNode(seeker.nodeHandle());
-
-			if (!velocity)
-				continue;
-
-			FVector dir = (neighbourNode.position - seekerNode.position);
-			float distSqrd = dir.SizeSquared();
-			dir = dir.GetSafeNormal();
-
-			// set velocity (not n-body for now)
-			velocity->linearVelocity = dir * 5.0f;
-
-			// bind
-			if (distSqrd < bindingDistSqrd)
+			for (int i = 0; i < ring.Num(); ++i)
 			{
-				graph->connectNodes<FFlexConnection>(seekerNode.handle(), neighbourNode.handle(), radius_segment * 2.0f, 0.9f);
+				FGraphNodeHandle cur = ring[i];
+				FGraphNodeHandle next = ring[(i + 1) % ring.Num()];
 
-				seekerNode.removeComponent<FBoidSeeker>(*graph);
-				neighbourNode.removeComponent<FBoidSeeker>(*graph);
+				if (cur == next) continue;
 
-				if( seekerNode.hasComponent<FRandomWalkGraphObject>() )
-					seekerNode.removeComponent<FRandomWalkGraphObject>(*graph);
-				if (neighbourNode.hasComponent<FRandomWalkGraphObject>())
-					neighbourNode.removeComponent<FRandomWalkGraphObject>(*graph);
+				float distance = FVector::Dist(graph->node(cur).position, graph->node(next).position);
 
-				FGraphMesh& seekerMesh = seekerNode.component<FGraphMesh>(*graph);
-				seekerMesh.material = material_segment;
-				seekerMesh.markDirty();
-
-				FGraphMesh& neighbourMesh = neighbourNode.component<FGraphMesh>(*graph);
-				neighbourMesh.material = material_segment;
-				neighbourMesh.markDirty();
+				auto oneRingEdge = graph->connectNodes<FFlexConnection>(cur, next, distance, 0.5f);
 			}
 		}
 	}
@@ -472,109 +568,263 @@ void USwarmSimulation::_tickBoidGenerators()
 {
 	auto& generatorStorage = graph->componentStorage<FBoidGenerator>();
 
-	float minSeparationSqrd = std::pow(radius_segment * 2.0f, 2.0f);
+	std::vector<FGraphNodeHandle> toRemove;
+
+	
+
+	UMeshFilamentSimulation * filamentSimulation = simulationManager->simulation<UMeshFilamentSimulation>();
+	auto& filamentRules = ruleGraph.componentStorage<FSGFilamentRule>();
+
+	auto& seekers = graph->componentStorage<FBoidSeeker>();
+
+	// assign filament groups
+	for (FBoidGenerator& boid : generatorStorage)
+	{
+		if (!boid.isValid())
+			continue;
+
+		if (boid.filamentGroup < 0)
+		{
+			FSGFilamentRule * filamentRule = filamentRules.componentPtrForNode(boid._exemplarPrototype);
+
+			if (filamentRule)
+				boid.filamentGroup = filamentSimulation->nextGroup(filamentRule->material);
+			else
+				boid.filamentGroup = filamentSimulation->nextGroup();
+		}
+	}
+
+	// if the generator doesn't have a last, create one
+	for (FBoidGenerator& boid : generatorStorage)
+	{
+		if (!boid.isValid() || boid.last )
+			continue;
+
+		FGraphNode& boidNode = graph->node(boid.nodeHandle());
+
+		FVector p = boidNode.position - boidNode.orientation.RotateVector(FVector::ForwardVector);
+
+		FGraphNodeHandle newHandle = FGraphNodeHandle(graph->addNode(boidNode.position, boidNode.orientation, boidNode.scale));
+
+		FGraphNode& newNode = graph->node(newHandle);
+
+		newNode.addComponent<FFlexParticleObject>(*graph);
+		newNode.addComponent<FVelocityGraphObject>(*graph);
+
+		boid.last = newHandle;
+	}
+
+	graph->beginTransaction();
 
 	for (FBoidGenerator& boid : generatorStorage)
 	{
 		if (!boid.isValid() || !boid.last)
 			continue;
 
-		FGraphNode boidNode = graph->node(boid.nodeHandle());
+		FGraphNode& boidNode = graph->node(boid.nodeHandle());
 
 		FGraphNode& lastNode = graph->node(boid.last);
 
-		FVector dir = (lastNode.position - boidNode.position);
-		float distanceSqrd = dir.SizeSquared();
+		FVector dir = (boidNode.position - lastNode.position);
+		float distance = dir.Size();
 
 		// are we far enough from the last guy to create a new segment?
-		if (distanceSqrd < minSeparationSqrd)
+		// and don't overlap with ourselves
+		if (distance < boid.currentDistance + radius_segment * 2.0f)
 			continue;
 
 		dir = dir.GetSafeNormal();
 
-		FVector segmentPosition = lastNode.position + dir * radius_segment * 2.0f;
+		FVector segmentPosition = lastNode.position + dir * boid.currentDistance;
 
-		FGraphNodeHandle segment;
+		FGraphNodeHandle theExampleHandle = _handleInFilamentSequence(boid.currentIndex, boid._exemplarPrototype);
+
+		FGraphNodeHandle newHandle;
 
 		// is this the last segment in the chain?
-		if (boid.counter >= boid.maxCount - 1)
+		if (!theExampleHandle)
 		{
-			graph->removeNode(boidNode.id);
-
-			segment = _createSeeker(segmentPosition, boidNode.orientation, boid.starNode);
+			// queue the node for removal
+			toRemove.push_back(boid.nodeHandle());
 		}
 		else
 		{
-			// create a segment
-			segment = _createSegment(segmentPosition, boidNode.orientation);
+			FGraphNode& theExampleNode = ruleGraph.node(theExampleHandle);
+			FVector forward = theExampleNode.orientation.RotateVector(FVector::ForwardVector);
+			FQuat rotation = FQuat::FindBetween(forward, dir);
+
+			FBoidRootNode * boidRoot = graph->componentPtr<FBoidRootNode>(boid.nodeHandle());
+			FGraphNodeHandle rootNode = boidRoot ? boidRoot->rootNode : FGraphNodeHandle::null;
+
+			newHandle = copyElement(theExampleHandle, ruleGraph, *graph, segmentPosition, rotation, rootNode);
+
+			if (FBoidSeeker * seeker = seekers.componentPtrForNode(newHandle))
+			{
+				seeker->starNode = boid.starNode;
+			}
 		}
 
-		auto oneRingEdge = graph->connectNodes<FFlexConnection>(boid.last, segment, radius_segment * 2.0f, 0.5f);
+		
+
+		auto oneRingEdge = graph->connectNodes<FFlexConnection>(boid.last, newHandle, boid.currentDistance, 0.5f);
 
 		auto& filament = graph->addOrReplaceEdgeObject<FFilamentConnection>(oneRingEdge);
 		{
-			filament.radius = 0.5f;
+			filament.radius = boid.filamentRadius;
 			filament.group = boid.filamentGroup;
-			filament.segmentID = boid.counter;
+			filament.segmentID = boid.currentIndex;
 		}
 
 		if (boid.last2ring)
-			graph->connectNodes<FFlexConnection>(boid.last2ring, segment, radius_segment * 4.0f, 0.5f);
+		{
+			FVector lastLastPosition = graph->node(boid.last2ring).position;
+			float lastLastDist = FVector::Dist(lastLastPosition, segmentPosition);
+
+			graph->connectNodes<FFlexConnection>(boid.last2ring, newHandle, lastLastDist, 0.5f);
+		}
+		// this is the first chain in the filament, add it to the star ring, if we have one
+		else
+		{
+			if (boid.starNode)
+			{
+				if (FBoidStar * star = graph->componentPtr<FBoidStar>(boid.starNode))
+				{
+					star->_inProgressRing.Add(newHandle);
+				}
+			}
+		}
 
 		boid.last2ring = boid.last;
-		boid.last = segment;
-		boid.counter++;
+		boid.last = newHandle;
+		boid.currentIndex++;
+
+		// update the current distance
+		FGraphNodeHandle theNextHandle = _handleInFilamentSequence(boid.currentIndex, boid._exemplarPrototype);
+		if (theNextHandle)
+		{
+			FBoidSegment * nextSegment = ruleGraph.componentPtr<FBoidSegment>(theNextHandle);
+			FBoidSegment * segment = ruleGraph.componentPtr<FBoidSegment>(newHandle);
+
+			boid.currentDistance = 0.0f;
+
+			if (nextSegment && segment)
+			{
+				boid.currentDistance = nextSegment->radius && segment->radius;
+			}
+			else
+				boid.currentDistance = boid.segmentLength;
+		}
+		// we're done, delete the boid
+		else
+		{
+			// it's the last body in the segment, extend the filament
+			filament.bExtension = boid.filamentRadius;
+
+			// queue the node for removal
+			toRemove.push_back(boid.nodeHandle());
+		}
 
 		// don't touch boidNode anymore, it could be invalid
 	}
+
+	graph->endTransaction();
+
+	graph->beginTransaction();
+	// kill the boids that are done
+	for (auto handle : toRemove)
+	{
+//		handle(graph).removeComponent<FBoidGenerator>(*graph);
+		graph->removeNode(handle);
+	}
+
+	graph->endTransaction();
+}
+
+FGraphNodeHandle USwarmSimulation::_handleInFilamentSequence(int32 sequenceIndex, FGraphNodeHandle ruleNode)
+{
+	FSGFilamentRule * filamentRule = ruleGraph.componentPtr<FSGFilamentRule>(ruleNode);
+
+	FGraphNodeHandle result = FGraphNodeHandle::null;
+
+	if (!filamentRule) result;
+
+	if (sequenceIndex < filamentRule->headHandles.Num())
+		result = filamentRule->headHandles[sequenceIndex];
+
+	else if (sequenceIndex < filamentRule->headHandles.Num() + filamentRule->numInBody)
+	{
+		int32 index = (sequenceIndex - filamentRule->headHandles.Num()) % filamentRule->bodyHandles.Num();
+
+		result = filamentRule->bodyHandles[index];
+	}
+	else if (sequenceIndex < filamentRule->headHandles.Num() + filamentRule->numInBody + filamentRule->tailHandles.Num())
+	{
+		int32 index = sequenceIndex - (filamentRule->headHandles.Num() + filamentRule->numInBody);
+
+		result = filamentRule->tailHandles[index];
+	}
+	
+	return result;
 }
 
 void USwarmSimulation::_tickBoidSeekers(float deltaT)
 {
-	BVH_t seekerBVH;
+	BVH_t& mlElementsBVH = simulationManager->simulation<UMLElementSimulation>()->elementBVH;
 
-	const float bindingDistSqrd = std::pow(radius_segment * 2.0f, 2.0f);
+	const float bindingDist = std::pow(radius_segment * 2.0f, 1.0);
 
 
-	auto& seekerStorage = graph->componentStorage<FBoidSeeker>();
-	auto& velocityStorage = graph->componentStorage<FVelocityGraphObject>();
+	auto& seekers = graph->componentStorage<FBoidSeeker>();
+	auto& mlElements = graph->componentStorage<FMLElement>();
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+	auto& blockers = graph->componentStorage<FBoidSeekerBlocker>();
+	auto& roots = graph->componentStorage<FBoidRootNode>();
 
-	for (FBoidSeeker& seeker : seekerStorage)
-	{
-		if (!seeker.isValid())
-			continue;
+	graph->beginTransaction();
 
-		FGraphNode& node = graph->node(seeker.nodeHandle());
-
-		if (!node.isValid())
-			continue;
-
-		seekerBVH.insertParticle(node.id, &node.position.X, radius_segment);
-	}
-
-	for (FBoidSeeker& seeker : seekerStorage)
+	for (FBoidSeeker& seeker : seekers)
 	{
 		FGraphNode& seekerNode = graph->node(seeker.nodeHandle());
 
-		decltype(_starBVH)::AABB_t query(&seekerNode.position.X, minNC1Separation);
+		auto getRootHandle = [&roots](FGraphNodeHandle handle) {
+			FBoidRootNode * rootNode = roots.componentPtrForNode(handle);
+
+			return rootNode ? rootNode->rootNode : FGraphNodeHandle::null;
+		};
+
+		FGraphNodeHandle rootNodeHandle = getRootHandle(seeker.nodeHandle());
+
+		unrealAABB::AABB query(seekerNode.position, seekerRadius);
 
 		float minDistanceSqrd = std::numeric_limits<float>::max();
 		FGraphNodeHandle minNodeHandle = FGraphNodeHandle::null;
 
-		seekerBVH.query(query, [&](unsigned int particleIndex) {
+		mlElementsBVH.query(query, [&](unsigned int particleIndex) {
 			FGraphNodeHandle handle(particleIndex);
 
-			if (handle == seeker.nodeHandle())
+			// abort and keep searching
+			if (handle == seeker.nodeHandle()) return true;
+
+			FGraphNode& otherNode = graph->node(handle);
+
+			FMLElement * otherElement = mlElements.componentPtrForNode(handle);
+			FBoidSeeker * otherSeeker = seekers.componentPtrForNode(handle);
+
+
+			FGraphNodeHandle otherNodeHandle = getRootHandle(handle);
+
+			// abort if we are from the same root and keep searching
+			if (rootNodeHandle == otherNodeHandle && rootNodeHandle) return true;
+
+			// we might have added a block since we built the BVH
+			if (blockers.componentPtrForNode(handle))
 				return true;
 
-			FGraphNode& particleNode = graph->node(handle);
+			// abort if we don't match FMLSpeciesIDs and keep searching
+			if ( seeker.bobSpecies.Find(otherElement->type) == INDEX_NONE ) return true;
 
-			FBoidSeeker * particleSeeker = seekerStorage.componentPtrForNode(handle);
-
-			if (particleSeeker->starNode == seeker.starNode)
-				return true;
-
-			float distSqrd = (particleNode.position - seekerNode.position).SizeSquared();
+			// find the nearest node
+			float distSqrd = (otherNode.position - seekerNode.position).SizeSquared();
 
 			if (distSqrd < minDistanceSqrd)
 			{
@@ -585,111 +835,172 @@ void USwarmSimulation::_tickBoidSeekers(float deltaT)
 			return true; // continue
 		});
 
-		if (minNodeHandle)
+		// don't connect to blocked nodes (already bound)
+		// don't use our node references, they can be invalidated in this block
+		if (minNodeHandle && blockers.componentPtrForNode(minNodeHandle) == nullptr)
 		{
-			FGraphNode& neighbourNode = graph->node(minNodeHandle);
-
-			FBoidSeeker * neighbourSeeker = seekerStorage.componentPtrForNode(minNodeHandle);
-
 			// attract to the neighbor
-			FVelocityGraphObject * velocity = velocityStorage.componentPtrForNode(seeker.nodeHandle());
+			FVelocityGraphObject * velocity = velocities.componentPtrForNode(seeker.nodeHandle());
 
 			if (!velocity)
-				continue;
+			{
+				velocity = &seekerNode.addComponent<FVelocityGraphObject>(*graph);
+			}
 
-			FVector dir = (neighbourNode.position - seekerNode.position);
-			float distSqrd = dir.SizeSquared();
+			FVector dir = (graph->node(minNodeHandle).position - seekerNode.position);
+			float dist = dir.Size();
 			dir = dir.GetSafeNormal();
 
 			// set velocity (not n-body for now)
 			velocity->linearVelocity = dir * 5.0f;
 
-			// bind
-			if (distSqrd < bindingDistSqrd)
+			// create a new node between them
+			// and bind the seekers to it
+			if (dist < bindingDist)
 			{
-				graph->connectNodes<FFlexConnection>(seekerNode.handle(), neighbourNode.handle(), radius_segment * 2.0f, 0.5f);
+				FBoidSeeker * otherSeeker = seekers.componentPtrForNode(minNodeHandle);
 
-				seekerNode.removeComponent<FBoidSeeker>(*graph);
-				neighbourNode.removeComponent<FBoidSeeker>(*graph);
-
-				if (seekerNode.hasComponent<FRandomWalkGraphObject>())
-					seekerNode.removeComponent<FRandomWalkGraphObject>(*graph);
-				if (neighbourNode.hasComponent<FRandomWalkGraphObject>())
-					neighbourNode.removeComponent<FRandomWalkGraphObject>(*graph);
-
-				FGraphMesh& seekerMesh = seekerNode.component<FGraphMesh>(*graph);
-				seekerMesh.material = material_segment;
-				seekerMesh.markDirty();
-
-				FGraphMesh& neighbourMesh = neighbourNode.component<FGraphMesh>(*graph);
-				neighbourMesh.material = material_segment;
-				neighbourMesh.markDirty();
+				if (otherSeeker)
+					_connectSeekers(seekerNode.handle(), minNodeHandle, radius_segment * 2.0f);
+				else
+					_connectSeekerOneWay(seekerNode.handle(), minNodeHandle, radius_segment * 2.0f);
 			}
 		}
 	}
+
+	graph->endTransaction();
 }
 
-FGraphNodeHandle USwarmSimulation::_createSegment(FVector position, FQuat orientation)
+void USwarmSimulation::_connectSeekers(FGraphNodeHandle aHandle, FGraphNodeHandle bHandle, float desiredDistance)
 {
-	FGraphNode& segmentNode = graph->node(graph->addNode(position, orientation, radius_segment * scaleFactor_segment));
+	FVector dir = (graph->node(bHandle).position - graph->node(aHandle).position);
+	float dist = dir.Size();
+	dir = dir.GetSafeNormal();
+	
+	FVector p_mid = graph->node(aHandle).position + dir * dist * 0.5f;
 
-	if (debugDrawBoids)
+	FGraphNodeHandle midHandle = FGraphNodeHandle(graph->addNode(p_mid));
+
+	FGraphNode& aNode = graph->node(aHandle);
+	FGraphNode& bNode = graph->node(bHandle);
+	FGraphNode& midNode = graph->node(midHandle);
+
+
+	
+
+	midNode.addComponent<FFlexParticleObject>(*graph);
+
+	if (!aNode.hasComponent<FFlexParticleObject>())
+		aNode.addComponent<FFlexParticleObject>(*graph);
+
+	if (!bNode.hasComponent<FFlexParticleObject>())
+		bNode.addComponent<FFlexParticleObject>(*graph);
+
+	auto aEdge = graph->connectNodes<FFlexConnection>(aHandle, midHandle, desiredDistance * 0.5f, 0.5f);
+	auto bEdge = graph->connectNodes<FFlexConnection>(midHandle, bHandle, desiredDistance * 0.5f, 0.5f);
+	
+	auto getLastFilament = [&](FGraphNodeHandle handle) {
+		FGraphNode& node = graph->node(handle);
+
+		FFilamentConnection * theFilament = nullptr;
+
+		node.each<FFilamentConnection>(*graph, [&](FGraphNodeHandle other, FFilamentConnection& filament)
+		{
+			theFilament = &filament;
+		});
+
+		return theFilament;
+	};
+
+	// extend the filaments
+	if (FFilamentConnection * lastFilament = getLastFilament(aHandle))
 	{
-		FGraphMesh& mesh = segmentNode.addComponent<FGraphMesh>(*graph);
+		FFilamentConnection& filament = graph->addOrReplaceEdgeObject<FFilamentConnection>(aEdge);
 
-		mesh.material = material_segment;
-		mesh.staticMesh = staticMesh_segment;
-		mesh.visible = debugDrawBoids;
+		filament.radius = lastFilament->radius;
+		filament.group = lastFilament->group;
+		filament.segmentID = lastFilament->segmentID <= 0 ? lastFilament->segmentID - 1 : lastFilament->segmentID + 1;
 	}
 
-	FBoid& boid = segmentNode.addComponent<FBoid>(*graph);
-	boid.radius = radius_segment;
-
-	segmentNode.addComponent<FFlexParticleObject>(*graph);
-	segmentNode.addComponent<FVelocityGraphObject>(*graph);
-	segmentNode.addComponent<FBoidSegment>(*graph);
-
-	return segmentNode.handle();
-}
-
-FGraphNodeHandle USwarmSimulation::_createSeeker(FVector position, FQuat orientation, FGraphNodeHandle starNode)
-{
-	FGraphNode& segmentNode = graph->node(graph->addNode(position, orientation, radius_7S * scaleFactor_7S));
-
-	FGraphMesh& mesh = segmentNode.addComponent<FGraphMesh>(*graph);
-
-	mesh.material = material_7S;
-	mesh.staticMesh = staticMesh_7S;
-
-	FBoid& boid = segmentNode.addComponent<FBoid>(*graph);
-	boid.radius = radius_7S;
-
-	segmentNode.addComponent<FFlexParticleObject>(*graph);
-	segmentNode.addComponent<FVelocityGraphObject>(*graph);
-	segmentNode.addComponent<FRandomWalkGraphObject>(*graph);
-	FBoidSeeker& seeker = segmentNode.addComponent<FBoidSeeker>(*graph);
-	seeker.starNode = starNode;
-
-	return segmentNode.handle();
-}
-
-void USwarmSimulation::_loadStarBVH()
-{
-	_starBVH.removeAll();
-
-	auto& storage = graph->componentStorage<FBoidStar>();
-
-	for (FBoidStar& star : storage)
+	if (FFilamentConnection * lastFilament = getLastFilament(bHandle))
 	{
-		if (!star.isValid())
-			continue;
+		FFilamentConnection& filament = graph->addOrReplaceEdgeObject<FFilamentConnection>(bEdge);
 
-		FGraphNode& node = graph->node(star.nodeHandle() );
-
-		if( !node.isValid() )
-			continue;
-
-		_starBVH.insertParticle(star.nodeIndex, &node.position.X, radius_segment);
+		filament.radius = lastFilament->radius;
+		filament.group = lastFilament->group;
+		filament.segmentID = lastFilament->segmentID <= 0 ? lastFilament->segmentID - 1 : lastFilament->segmentID + 1;
 	}
+
+	_cleanupConnection(aNode, bNode);
 }
 
+void USwarmSimulation::_connectSeekerOneWay(FGraphNodeHandle seeker, FGraphNodeHandle target, float distance)
+{
+	auto getLastFilament = [&](FGraphNodeHandle handle) {
+		FGraphNode& node = graph->node(handle);
+
+		FFilamentConnection * theFilament = nullptr;
+
+		node.each<FFilamentConnection>(*graph, [&](FGraphNodeHandle other, FFilamentConnection& filament)
+		{
+			theFilament = &filament;
+		});
+
+		return theFilament;
+	};
+
+	FGraphNode& seekerNode = graph->node(seeker);
+	FGraphNode& targetNode = graph->node(target);
+
+	if (!targetNode.hasComponent<FFlexParticleObject>())
+		targetNode.addComponent<FFlexParticleObject>(*graph);
+
+	auto edgeHandlef = graph->connectNodes<FFlexConnection>(seeker, target, distance, 0.5f);
+
+	if (FFilamentConnection * lastFilament = getLastFilament(seeker))
+	{
+		FFilamentConnection& filament = graph->addOrReplaceEdgeObject<FFilamentConnection>(edgeHandlef);
+
+		filament.radius = lastFilament->radius;
+		filament.group = lastFilament->group;
+		filament.segmentID = lastFilament->segmentID <= 0 ? lastFilament->segmentID - 1 : lastFilament->segmentID + 1;
+	}
+
+	_cleanupConnection(seekerNode, targetNode);
+}
+
+void USwarmSimulation::_cleanupConnection(FGraphNode& aNode, FGraphNode& bNode)
+{
+	if (aNode.hasComponent<FBoidSeeker>())
+		aNode.removeComponent<FBoidSeeker>(*graph);
+
+	if (bNode.hasComponent<FBoidSeeker>())
+		bNode.removeComponent<FBoidSeeker>(*graph);
+
+	//if (aNode.hasComponent<FRandomWalkGraphObject>())
+	//	aNode.removeComponent<FRandomWalkGraphObject>(*graph);
+
+	//if (bNode.hasComponent<FRandomWalkGraphObject>())
+	//	bNode.removeComponent<FRandomWalkGraphObject>(*graph);
+
+	//if (aNode.hasComponent<FSingleParticleBrownian>())
+	//	aNode.removeComponent<FSingleParticleBrownian>(*graph);
+
+	//if (bNode.hasComponent<FSingleParticleBrownian>())
+	//	bNode.removeComponent<FSingleParticleBrownian>(*graph);
+
+	aNode.addComponent<FBoidSeekerBlocker>(*graph);
+	bNode.addComponent<FBoidSeekerBlocker>(*graph);
+}
+
+
+void ASGPrototypeActor::writeToElement(ElementTuple& element, FGraph& graph)
+{
+	Super::writeToElement(element, graph);
+
+	handleInRuleGraph = element.handle();
+
+	FSGRuleTypeName& ruleTypeName = element.node.addComponent<FSGRuleTypeName>(graph);
+
+	ruleTypeName.typeName = typeName;
+}

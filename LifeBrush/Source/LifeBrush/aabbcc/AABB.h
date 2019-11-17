@@ -45,6 +45,96 @@ const unsigned int NULL_NODE = 0xffffffff;
 
 namespace aabb
 {
+	/*! \brief Maps particle indices to node indices. 
+
+	The assumption is that the particle indices are fairly compact between 0 and the number of particles.
+	Behind the scenes, the map is a vector. So, if you have particle indices in the billions, you are going
+	to pay the price in memory for the sparsity of the indices.
+	*/
+	struct ParticleMap
+	{
+		std::vector<int> particleMap;
+
+		size_t _size = 0;
+
+		void clear() {
+			particleMap.clear();
+		}
+
+		void erase(unsigned int particleIndex)
+		{
+			if (particleIndex < particleMap.size() && particleMap[particleIndex] >= 0)
+			{
+				particleMap[particleIndex] = -1;
+
+				_size--;
+			}
+		}
+
+		bool contains(unsigned int particleIndex)
+		{
+			if (particleIndex >= particleMap.size())
+				return false;
+			else
+				return particleMap[particleIndex] >= 0;
+		}
+
+		unsigned int find(unsigned int particleIndex)
+		{
+			return particleMap[particleIndex];
+		}
+
+		void insert(unsigned int particleIndex, unsigned int nodeIndex)
+		{
+			if (particleIndex >= particleMap.size())
+				particleMap.resize(particleIndex + 1, -1);
+
+			if (particleMap[particleIndex] < 0)
+				_size++;
+
+			particleMap[particleIndex] = nodeIndex;
+		}
+
+		size_t size()
+		{
+			return _size;
+		}
+	};
+
+	struct ParticleMap_TMapBased
+	{
+		TMap<int,unsigned int> particleMap;
+
+		void clear() {
+			particleMap.Empty();
+		}
+
+		void erase(unsigned int particleIndex)
+		{
+			particleMap.Remove(particleIndex);
+		}
+
+		bool contains(unsigned int particleIndex)
+		{
+			return particleMap.Contains(particleIndex);
+		}
+
+		unsigned int find(unsigned int particleIndex)
+		{
+			return *particleMap.Find(particleIndex);
+		}
+
+		void insert(unsigned int particleIndex, unsigned int nodeIndex)
+		{
+			particleMap.Emplace(particleIndex, nodeIndex);
+		}
+
+		size_t size()
+		{
+			return particleMap.Num();
+		}
+	};
+
     /*! \brief The axis-aligned bounding box object.
 
         Axis-aligned bounding boxes (AABBs) store information for the minimum
@@ -498,7 +588,10 @@ namespace aabb
         std::array<SCALAR,DIM> posMinImage;
 
         /// A map between particle and node indices.
-        std::map<unsigned int, unsigned int> particleMap;
+		ParticleMap_TMapBased particleMap;
+
+
+//        std::map<unsigned int, unsigned int> particleMap;
 
         /// Does touching count as overlapping in tree queries?
         bool touchIsOverlap;
@@ -595,10 +688,7 @@ namespace aabb
 		for (unsigned int i = 0; i < lowerBound.size(); i++)
 		{
 			// Validate the bound.
-			if (lowerBound[i] > upperBound[i])
-			{
-				throw std::invalid_argument("[ERROR]: AABB lower bound is greater than the upper bound!");
-			}
+			assert(lowerBound[i] <= upperBound[i] && "[ERROR]: AABB lower bound is greater than the upper bound!");
 		}
 
 		surfaceArea = computeSurfaceArea();
@@ -875,10 +965,7 @@ namespace aabb
 	void Tree<DIM, SCALAR>::insertParticle(unsigned int particle, const float * position, SCALAR radius)
 	{
 		// Make sure the particle doesn't already exist.
-		if (particleMap.count(particle) != 0)
-		{
-			throw std::invalid_argument("[ERROR]: Particle already exists in tree!");
-		}
+		assert(!particleMap.contains(particle) && "The particle already exists.");
 
 		// Allocate a new node for the particle.
 		unsigned int node = allocateNode();
@@ -910,7 +997,7 @@ namespace aabb
 		insertLeaf(node);
 
 		// Add the new particle to the map.
-		particleMap.insert(std::map<unsigned int, unsigned int>::value_type(particle, node));
+		particleMap.insert(particle, node);
 
 		// Store the particle index.
 		nodes[node].particle = particle;
@@ -920,10 +1007,7 @@ namespace aabb
 	void Tree<DIM, SCALAR>::insertParticle(unsigned int particle, const float * lowerBound, const float *upperBound)
 	{
 		// Make sure the particle doesn't already exist.
-		if (particleMap.count(particle) != 0)
-		{
-			throw std::invalid_argument("[ERROR]: Particle already exists in tree!");
-		}
+		assert(!particleMap.contains(particle) && "The particle already exists.");
 
 		// Allocate a new node for the particle.
 		unsigned int node = allocateNode();
@@ -935,10 +1019,7 @@ namespace aabb
 		for (unsigned int i = 0; i < DIM; i++)
 		{
 			// Validate the bound.
-			if (lowerBound[i] > upperBound[i])
-			{
-				throw std::invalid_argument("[ERROR]: AABB lower bound is greater than the upper bound!");
-			}
+			assert(lowerBound[i] <= upperBound[i] && "[ERROR]: AABB lower bound is greater than the upper bound!");
 
 			nodes[node].aabb.lowerBound[i] = lowerBound[i];
 			nodes[node].aabb.upperBound[i] = upperBound[i];
@@ -961,7 +1042,7 @@ namespace aabb
 		insertLeaf(node);
 
 		// Add the new particle to the map.
-		particleMap.insert(std::map<unsigned int, unsigned int>::value_type(particle, node));
+		particleMap.insert(particle, node);
 
 		// Store the particle index.
 		nodes[node].particle = particle;
@@ -976,26 +1057,19 @@ namespace aabb
 	template<unsigned int DIM, typename SCALAR>
 	bool Tree<DIM, SCALAR>::containsParticle(unsigned int index)
 	{
-		return particleMap.find(index) != particleMap.end();
+		return particleMap.contains(index);
 	}
 
 	template<unsigned int DIM, typename SCALAR>
 	void Tree<DIM, SCALAR>::removeParticle(unsigned int particle)
 	{
-		// Map iterator.
-		std::map<unsigned int, unsigned int>::iterator it;
-
-		// Find the particle.
-		it = particleMap.find(particle);
-
-		// The particle doesn't exist.
-		assert(it != particleMap.end());
+		assert(!particleMap.contains(particle) && "The particle was not in the tree.");
 
 		// Extract the node index.
-		unsigned int node = it->second;
+		unsigned int node = particleMap.find(particle);
 
 		// Erase the particle from the map.
-		particleMap.erase(it);
+		particleMap.erase(particle);
 
 		assert(node < nodeCapacity);
 		assert(nodes[node].isLeaf());
@@ -1053,20 +1127,10 @@ namespace aabb
 		const float * upperBound, 
 		bool alwaysReinsert)
 	{
-		// Map iterator.
-		std::map<unsigned int, unsigned int>::iterator it;
-
-		// Find the particle.
-		it = particleMap.find(particle);
-
-		// The particle doesn't exist.
-		if (it == particleMap.end())
-		{
-			throw std::invalid_argument("[ERROR]: Invalid particle index!");
-		}
+		assert(particleMap.contains(particle) && "The particle was not in the tree.");
 
 		// Extract the node index.
-		unsigned int node = it->second;
+		unsigned int node = particleMap.find(particle);
 
 		assert(node < nodeCapacity);
 		assert(nodes[node].isLeaf());
@@ -1078,10 +1142,7 @@ namespace aabb
 		for (unsigned int i = 0; i < DIM; i++)
 		{
 			// Validate the bound.
-			if (lowerBound[i] > upperBound[i])
-			{
-				throw std::invalid_argument("[ERROR]: AABB lower bound is greater than the upper bound!");
-			}
+			assert(lowerBound[i] <= upperBound[i] && "[ERROR]: AABB lower bound is greater than the upper bound!");
 
 			size[i] = upperBound[i] - lowerBound[i];
 		}
@@ -1119,13 +1180,10 @@ namespace aabb
 	std::vector<unsigned int> Tree<DIM, SCALAR>::query(unsigned int particle)
 	{
 		// Make sure that this is a valid particle.
-		if (particleMap.count(particle) == 0)
-		{
-			throw std::invalid_argument("[ERROR]: Invalid particle index!");
-		}
+		assert(particleMap.contains(particle) && "The particle was not in the tree.");
 
 		// Test overlap of particle AABB against all other particles.
-		return query(particle, nodes[particleMap.find(particle)->second].aabb);
+		return query(particle, nodes[particleMap.find(particle)].aabb);
 	}
 
 
@@ -1160,7 +1218,7 @@ namespace aabb
 	template<unsigned int DIM, typename SCALAR>
 	const typename Tree<DIM,SCALAR>::AABB_t& Tree<DIM, SCALAR>::getAABB(unsigned int particle)
 	{
-		return nodes[particleMap[particle]].aabb;
+		return nodes[particleMap.find(particle)].aabb;
 	}
 
 	template<unsigned int DIM, typename SCALAR>
