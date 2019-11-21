@@ -514,5 +514,6 @@ protected:
 	float _brushRadius();
 
 protected:
+	UPROPERTY()
 	UStaticMeshComponent * _brushMeshComponent = nullptr;
 };
