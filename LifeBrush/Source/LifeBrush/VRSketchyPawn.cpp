@@ -132,6 +132,9 @@ void AVRSketchyPawn::BeginPlay()
 		}
 	}
 
+	if (editorComponent)
+		editorComponent->init();
+
 	_initTools();
 
 	_initSimulation_oneTime();

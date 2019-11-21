@@ -88,6 +88,7 @@ public:
 
 	void loadElementDomain(FGraphSnapshot& toLoad);
 
+	void init() { _init();  }
 
 protected:
 	void _init();
