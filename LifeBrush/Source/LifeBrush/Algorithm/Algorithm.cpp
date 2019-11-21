@@ -450,6 +450,36 @@ FGraphNodeHandle Algorithm::_copyExemplarToOutput(FGraphNodeHandle sourceNodeHan
 	//}
 }
 
+void Algorithm::updateParticleBVH()
+{
+	FGraph& theGraph = _context.graph();
+
+	auto& particles = theGraph.componentStorage<FFlexParticleObject>();
+
+	const float hackRadius = 0.6;
+
+	// update or insert into the BVH
+	for (auto& particle : particles)
+	{
+		auto particleIndex = particle.nodeHandle().index;
+
+		if (!particle.isValid())
+		{
+			if (_particleBVH.containsParticle(particleIndex))
+				_particleBVH.removeParticle(particleIndex);
+		}
+
+		if (!particle.isValid()) continue;
+
+		FVector position = theGraph.node(particle.nodeHandle()).position;
+
+		if (_particleBVH.containsParticle(particleIndex))
+			_particleBVH.updateParticle(particleIndex, position, hackRadius);
+		else
+			_particleBVH.insertParticle(particleIndex, position, hackRadius);
+	}
+}
+
 void Algorithm::clearAlongPath(std::vector<PositionRadiusFace>& path)
 {
 	std::vector<FGraphNodeHandle> toRemove;
@@ -769,6 +799,31 @@ bool Algorithm::_overlaps(const Eigen::Vector3f& position, const float radius, F
         if( distance < allowedRadius  )
             return true;
     }
+
+	// check for particle overlap
+	{
+		FVector unrealPosition = unreal(position);
+
+		const float hackParticleRadius = 0.6;
+
+		unrealAABB::AABB query(unrealPosition, hackParticleRadius);
+
+		bool hasHit = false;
+
+		// check if the rule application overlaps with any occluders
+		// - we don't overlap with the target of the rule
+		// - we might need to exclude all of the handles in the rule
+		_particleBVH.query(query, [&](unsigned int particleIndex) {
+			hasHit = true;
+
+			// don't keep querying, we are done
+			return false;
+		});
+
+		if (hasHit)
+			return true;
+	}
+
     
     return false;
 }

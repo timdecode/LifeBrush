@@ -149,111 +149,6 @@ public:
 	void clear();
 
 
-	template<typename Func>
-	void processWithFunctionOld(Func func)
-	{
-		using SegmentType = LineElement::SegmentType;
-
-		const auto uvs = getUVs(0.0f, 1.0f);
-
-		// pre-compute the unit circle
-		TArray<FVector> unitCircle;
-		{
-			unitCircle.SetNum(numCircleComponents);
-
-			float piStep = M_PI * 2.0 / float(numCircleComponents);
-			for (int i = 0; i < numCircleComponents; ++i)
-			{
-				float t = float(i) * piStep;
-
-				float x = FMath::Cos(t);
-				float z = FMath::Sin(t);
-
-				unitCircle[i] = FVector(x, 0.0f, z);
-			}
-		}
-
-		// find the vertex positions
-		{
-			const FVector up = FVector::UpVector;
-
-			const int32 m = numCircleComponents * 2;
-
-			int32 pi = 0;
-
-			TArray<FVector> circleVertices;
-			circleVertices.SetNum(m);
-
-			FQuat lastQuat = FQuat::Identity;
-			FVector lastPosition = FVector::ZeroVector;
-
-			for (int32 i = 1; i < lineSegments.Num(); ++i)
-			{
-				auto& element_last = lineSegments[i - 1];
-				auto& element_cur = lineSegments[i + 0];
-
-				const FVector dirCur = (element_cur.point - element_last.point).GetSafeNormal();
-
-				if (element_cur.type == SegmentType::Begin)
-				{
-					continue;
-				}
-
-				if (element_last.type == SegmentType::Begin)
-				{
-					lastQuat = FQuat::FindBetween(FVector::RightVector, dirCur);
-				}
-
-				// Find rotation_a
-				FQuat quatA = lastQuat;
-
-				// Find rotation_b
-				FQuat quatB = FQuat::Identity;
-
-				if (element_cur.type == SegmentType::Middle)
-				{
-					quatB = FQuat::FindBetweenNormals(FVector::RightVector, dirCur);
-				}
-				else if (element_cur.type == SegmentType::End)
-				{
-					quatB = FQuat::FindBetweenNormals(FVector::RightVector, dirCur);
-				}
-
-				lastQuat = quatB;
-
-				const FVector& a = element_last.point;
-				const FVector& b = element_cur.point;
-
-				// compute the transformed unit circle vertices
-				for (int ci = 0; ci < m; ci += 2)
-				{
-					FVector va = quatA.RotateVector(unitCircle[ci / 2]);
-					FVector vb = quatB.RotateVector(unitCircle[ci / 2]);
-
-					circleVertices[ci + 1] = va * element_cur.radius + a;
-					circleVertices[ci] = vb * element_cur.radius + b;
-				}
-
-				const LineElement& evenElement = element_last;
-				const LineElement& oddElement = element_cur;
-
-
-				for (int j = 0; j < m; j += 2)
-				{
-
-					func(circleVertices[(j + 3) % m], circleVertices[j + 1], circleVertices[j + 0],
-						uvs[(j + 3) % m], uvs[j + 1], uvs[j + 0],
-						oddElement.color, oddElement.color, evenElement.color);
-
-					func(circleVertices[(j + 2) % m], circleVertices[(j + 3) % m], circleVertices[j + 0],
-						uvs[(j + 2) % m], uvs[(j + 3) % m], uvs[j + 0],
-						evenElement.color, oddElement.color, evenElement.color
-					);
-				}
-			}
-		}
-	}
-
 	// Frenet-Serret frames: https://en.wikipedia.org/wiki/Frenet%E2%80%93Serret_formulas
 	template<typename Func>
 	void processWithFunction(Func func)
@@ -423,39 +318,6 @@ public:
 				}
 				else if (element_cur.type == SegmentType::End)
 					continue;
-
-
-
-				//auto drawCap = [&](LineElement& e_a, FQuat quat_a, bool flip = false) {
-				//	const FVector& a = e_a.point;
-
-				//	// compute the transformed unit circle vertices
-				//	for (int ci = 0; ci < m; ci += 2)
-				//	{
-				//		FVector va = quat_a.RotateVector(unitCircle[ci / 2]);
-				//		
-				//		int ia = !flip ? 1 : 0;
-				//		int ib = !flip ? 0 : 1;
-
-				//		circleVertices[ci + ia] = a;
-				//		circleVertices[ci + ib] = va * e_a.radius + a;
-				//	}
-
-				//	const LineElement& evenElement = e_a;
-				//	const LineElement& oddElement = e_a;
-
-				//	for (int j = 0; j < m; j += 2)
-				//	{
-				//		func(circleVertices[(j + 3) % m], circleVertices[j + 1], circleVertices[j + 0],
-				//			uvs[(j + 3) % m], uvs[j + 1], uvs[j + 0],
-				//			oddElement.color, oddElement.color, evenElement.color);
-
-				//		func(circleVertices[(j + 2) % m], circleVertices[(j + 3) % m], circleVertices[j + 0],
-				//			uvs[(j + 2) % m], uvs[(j + 3) % m], uvs[j + 0],
-				//			evenElement.color, oddElement.color, evenElement.color
-				//		);
-				//	}
-				//};
 
 				auto drawCap = [&](FVector point_a, float radius_a, FColor color_a, FVector point_b, float radius_b, FColor color_b, FQuat quat, bool flip = false) {
 					// compute the transformed unit circle vertices
@@ -677,9 +539,6 @@ public:
 	}
 
 	virtual void commitWithFastPathOption(FColoredLineBuilder& builder, int32 section, UMaterialInterface * material_in = nullptr, bool topologyDidChange = true);
-
-
-	virtual void commitSection(FColoredLineBuilder& builder, int32 section, UMaterialInterface * material_in = nullptr, bool topologyDidChange = true);
 
 	virtual void clearSection(int32 section)
 	{

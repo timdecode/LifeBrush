@@ -140,26 +140,6 @@ void UColoredLineFactory::commitWithFastPathOption(FColoredLineBuilder& builder,
 	}
 }
 
-void UColoredLineFactory::commitSection(FColoredLineBuilder& lineBuilder, int32 section, UMaterialInterface * material_in, bool topologyDidChange)
-{
-	_runtimeMeshComponent->SetMeshSectionCollisionEnabled(section, false);
-
-	if (topologyDidChange)
-	{
-		auto quadFactory = lineBuilder.createQuadFactory(uvBottomY, uvTopY, uvXScale);
-
-
-		_runtimeMeshComponent->CreateMeshSection(section, quadFactory.vertices, quadFactory.indices, quadFactory.normals, quadFactory.uvs /* uvs*/, quadFactory.colors /* colors */, quadFactory.tangents, false, EUpdateFrequency::Infrequent);
-	}
-	else
-	{
-
-	}
-
-	_runtimeMeshComponent->SetMeshSectionCastsShadow(section, true);
-	_runtimeMeshComponent->SetMaterial(section, material_in ? material_in : material);
-}
-
 TArray<FRuntimeMeshVertexSimple> UColoredLineFactory::_simple(FColoredLineBuilder& builder)
 {
 	TArray<FRuntimeMeshVertexSimple> result;

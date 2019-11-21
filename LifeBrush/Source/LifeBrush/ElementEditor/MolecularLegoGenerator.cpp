@@ -23,10 +23,6 @@ std::vector<UClass *> UMolecularLegoGenerator::dependencies()
 void UMolecularLegoGenerator::init(SynthesisContext * context, UGraphSimulationManager * simulationManager)
 {
 	Super::init(context, simulationManager);
-
-
-
-	
 }
 
 void UMolecularLegoGenerator::attach(SynthesisContext * context, UGraphSimulationManager * simulationManager)
@@ -93,34 +89,14 @@ void UMolecularLegoGenerator::_tick(float deltaT)
 	auto& elements = graph.componentStorage<FMLElement>();
 
 	auto selection = exampleSelection();
-	if (selection.size() == 0)
+	if (selection.Num() == 0)
 		return;
+
 	FGraphNodeHandle anyHandle = selection[0];
 
 	const float minAssignmentDistance = mlSimulation->minAssignmentDistance;
 
 	auto toEnumerate = _activeElements.Array();
-
-	//std::function<LinearPath::PositionRotation (FVector p)> mapping;
-
-	//if (mode == EMolecularLegotGeneratorMode::AlongPath)
-	//{
-	//	mapping = [&](FVector position, FVector p_a, FVector p_b, int32 segmentIndex, float distance) {
-	//		LinearPath::PositionRotation frame;
-
-	//		const FVector pOnPath = FMath::ClosestPointOnInfiniteLine(p_a, p_b, position);
-
-	//		float distance = FVector::Dist(pOnPath, pOnPath_node);
-	//		// find the sign (which direction to walk along the path)
-	//		distance = FVector::DotProduct(pOnPath - pOnPath_node, p_b - p_a) >= 0.0f ? distance : -distance;
-
-	//		LinearPath::PositionRotation frame;
-	//		if (!_brushPath.frameAlongPath(pOnPath_node, segmentIndex, distance, frame))
-	//			continue;
-
-	//		return position;
-	//	};
-	//}
 
 	for (FGraphNodeHandle nodeHandle : toEnumerate)
 	{
@@ -251,13 +227,25 @@ void UMolecularLegoGenerator::_tick(float deltaT)
 				}
 			}
 		}
-
-		// we didn't generate anything, this element is no longer active
-		//if (numGenerated == 0 && !isBrushLimitied)
-		//	_activeElements.Remove(a);
 	}
 
 	graph.endTransaction();
+}
+
+void UMolecularLegoGenerator::setSelection(TArray<AElementActor*> selection)
+{
+	URegionGrowingGenerator*  regionGrowingGenerator = elementEditorComponent->generator<URegionGrowingGenerator>();
+
+	_selection.Empty();
+
+	if (!regionGrowingGenerator) return;
+
+	for (AElementActor* elementActor : selection)
+	{
+		FGraphNodeHandle handle = regionGrowingGenerator->handleForExampleActor(elementActor);
+
+		_selection.Add(handle);
+	}
 }
 
 bool UMolecularLegoGenerator::_hasNearestBrushSegment(FVector point, float radius, size_t& segment_a, size_t& segment_b)
@@ -313,13 +301,9 @@ UGraphSimulationManager * UMolecularLegoGenerator::exampleSimulationManager()
 }
 
 
-std::vector<FGraphNodeHandle> UMolecularLegoGenerator::exampleSelection()
+TArray<FGraphNodeHandle> UMolecularLegoGenerator::exampleSelection()
 {
-	URegionGrowingGenerator*  regionGrowingGenerator = elementEditorComponent->generator<URegionGrowingGenerator>();
-
-	if (!regionGrowingGenerator) return std::vector<FGraphNodeHandle>();
-
-	return regionGrowingGenerator->exampleSelection();
+	return _selection;
 }
 
 FGraphNodeHandle UMolecularLegoGenerator::_copyElement(
@@ -408,7 +392,7 @@ void UMolecularLegoGenerator::addBrushPoint(FVector point, float radius, FSurfac
 
 	auto selection = exampleSelection();
 
-	if (selection.empty()) return;
+	if (selection.Num() == 0) return;
 
 	FGraphNodeHandle anyHandle = selection[0];
 

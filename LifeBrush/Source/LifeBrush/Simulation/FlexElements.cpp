@@ -2632,7 +2632,7 @@ void UStaticPositionSimulation::tick(float deltaT)
 
 void UStaticPositionSimulation::tick_paused(float deltaT)
 {
-	tick(deltaT);
+	tick(0.0f);
 }
 
 void UStaticPositionSimulation::_tickStabalized(float deltaT)
@@ -2690,8 +2690,8 @@ void UStaticPositionSimulation::_tickStabalized(float deltaT)
 
 			if (FVelocityGraphObject * velocity = velocities.componentPtrForNode(staticObject.nodeHandle()))
 			{
-				if (deltaT == 0.0f) deltaT = 0.001f;
-				velocity->linearVelocity += dv / deltaT;
+				if (deltaT >= 0.001f)
+					velocity->linearVelocity += dv / deltaT;
 			}
 		}
 	}

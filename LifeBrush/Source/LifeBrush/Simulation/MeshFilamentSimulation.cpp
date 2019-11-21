@@ -55,8 +55,7 @@ void UMeshFilamentSimulation::tick_paused(float deltaT)
 {
 	if (_areFilamentsFrozen)
 		_updateFrozenComponents();
-	
-	if( !_areFilamentsFrozen || _dirty )
+	else if( _dirty )
 		_updateFilaments();
 
 	_updateDesaturated();
@@ -65,6 +64,8 @@ void UMeshFilamentSimulation::tick_paused(float deltaT)
 
 void UMeshFilamentSimulation::_updateFilaments()
 {
+	_initRMC();
+
 	// indexed by section
 	TMap<int32, FColoredLineBuilder> buildersBySection;
 
@@ -162,39 +163,6 @@ void UMeshFilamentSimulation::_updateFilaments()
 		}
 	}
 
-	//filaments.each([&](FFilamentConnection& filament, FGraphEdge& edge) {
-	//	bool newGroup = !lastConnection || lastConnection->group != filament.group;
-
-	//	if (newGroup && lastConnection)
-	//	{
-	//		FVector p = graph->node(lastEdge->b).position;
-
-	//		if(curBuilder)
-	//			curBuilder->end(p, lastConnection->radius);
-	//	}
-
-	//	FVector a = graph->node(edge.a).position;
-
-	//	if (newGroup)
-	//	{
-	//		auto section = groupToSection[filament.group];
-	//		curBuilder = &builders[section];
-
-	//		curBuilder->begin(a, filament.radius);
-	//	}
-	//	else
-	//		curBuilder->addPoint(a, filament.radius);
-
-	//	FVector b = graph->node(edge.b).position;
-
-	//	curBuilder->addPoint(b, filament.radius);
-
-
-	//	lastConnection = &filament;
-	//	lastEdge = &edge;
-	//});
-
-
 	if (graph->numEdges() > 0)
 	{
 		bool topologyChanged = graph->numEdges() != lastCount || _dirty;
@@ -203,12 +171,100 @@ void UMeshFilamentSimulation::_updateFilaments()
 		for (auto& pair : materialToSection)
 			sectionToMaterial.Add(pair.Value, pair.Key);
 
-		for (auto& pair : buildersBySection)
-		{
-			auto section = pair.Key;
-			auto material = sectionToMaterial[section];
 
-			_lineFactory->commitWithFastPathOption(pair.Value, section, material, topologyChanged);
+
+
+		// create sections
+		if (topologyChanged)
+		{
+			typedef std::pair<int32, TSharedPtr<FRuntimeMeshBuilder> > SectionAndBuilder_t;
+
+			std::vector<TFuture<SectionAndBuilder_t>> futures;
+
+			// build the sections
+			for (auto& pair : buildersBySection)
+			{
+				auto section = pair.Key;
+				auto material = sectionToMaterial[section];
+				auto& builder = pair.Value;
+
+				futures.emplace_back(Async<SectionAndBuilder_t>(EAsyncExecution::ThreadPool, [section, &builder]() mutable
+				{
+					auto meshBuilder = MakeRuntimeMeshBuilder(false, false, 1, true);
+					builder.createToBuilder(meshBuilder);
+
+					
+
+					return std::make_pair(section, meshBuilder);
+				}));
+
+
+			}
+
+			// update the RMC
+			for (auto& future : futures)
+			{
+				SectionAndBuilder_t sectionAndBuilder = future.Get();
+				auto section = sectionAndBuilder.first;
+
+				auto material = sectionToMaterial[section];
+				
+				_runtimeMeshComponent->CreateMeshSection(
+					section,
+					sectionAndBuilder.second, 
+					false, 
+					EUpdateFrequency::Frequent, 
+					ESectionUpdateFlags::None);
+
+				_runtimeMeshComponent->SetMeshSectionCollisionEnabled(section, false);
+				_runtimeMeshComponent->SetMeshSectionCastsShadow(section, true);
+				_runtimeMeshComponent->SetMaterial(section, material);
+			}
+		}
+		// update sections
+		else
+		{
+			std::vector<TFuture<FRuntimeMeshScopedUpdater*> > futures;
+
+
+			FRuntimeMeshData& meshData = _runtimeMeshComponent->GetOrCreateRuntimeMesh()->GetRuntimeMeshData().Get();
+
+			TArray<TUniquePtr<FRuntimeMeshScopedUpdater>> updaters;
+
+			// get the updaters, we do it this way because of the odd scroped pointer (and main thread lock assumptions in 
+			// the RMC code)
+			for (auto& pair : buildersBySection)
+			{
+				auto section = pair.Key;
+				auto& builder = pair.Value;
+
+				updaters.Emplace(meshData.BeginSectionUpdate(section));
+			}
+
+			// dispatch creation to the thread pool
+			int i = 0;
+			for (auto& pair : buildersBySection)
+			{
+				auto section = pair.Key;
+				auto& builder = pair.Value;
+
+				futures.emplace_back(Async<FRuntimeMeshScopedUpdater*>(EAsyncExecution::ThreadPool, [i, &updaters, &builder]() mutable
+				{
+					FRuntimeMeshScopedUpdater * updater = updaters[i].Get();
+
+					builder.updateRuntimeMeshData(*updater);
+
+					return updater;
+				}));
+
+				++i;
+			}
+
+			// sync the RMC on the futures
+			for (auto& future : futures)
+			{
+				future.Get()->Commit(true, true, false, false, false);
+			}
 		}
 	}
 
@@ -254,6 +310,22 @@ int32 UMeshFilamentSimulation::addSection(UMaterialInterface * material)
 }
 
 
+void UMeshFilamentSimulation::_initRMC()
+{
+	if (!_runtimeMeshComponent)
+	{
+		_runtimeMeshComponent = NewObject<URuntimeMeshComponent>(actor);
+
+		_runtimeMeshComponent->AttachToComponent(actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+
+		_runtimeMeshComponent->bCastDynamicShadow = true;
+
+		_runtimeMeshComponent->SetCollisionProfileName(TEXT("NoCollision"));
+
+		_runtimeMeshComponent->RegisterComponent();
+	}
+}
+
 uint32 UMeshFilamentSimulation::nextGroup(UMaterialInterface * material)
 {
 	if (!material) material = defaultLineMaterial;
@@ -281,7 +353,7 @@ void UMeshFilamentSimulation::snapshotToActor(AActor * actor)
 {
 	URuntimeMeshComponent * rmc = _lineFactory->_runtimeMeshComponent;
 
-	if (rmc)
+	if (rmc && rmc->GetNumSections() > 0 )
 	{
 		URuntimeMeshComponent * newRMC = NewObject<URuntimeMeshComponent>(actor);
 

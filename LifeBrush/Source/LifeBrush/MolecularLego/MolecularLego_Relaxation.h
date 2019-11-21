@@ -250,6 +250,7 @@ public:
 	virtual void tick_paused(float deltaT) override;
 
 	virtual void componentAdded(FGraphNodeHandle node, ComponentType type) override;
+	virtual void componentRemoved(FGraphNodeHandle node, ComponentType type) override;
 
 	auto addTickWork(std::function<void()> work) -> void;
 

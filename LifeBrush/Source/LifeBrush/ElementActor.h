@@ -113,4 +113,6 @@ protected:
 		TArray<FGraphNodeHandle>& particlesInBody,
 		TArray<FGraphNodeHandle>& membersInBody,
 		TArray<FGraphNodeHandle>& aggregatesInBody);
+
+	void _setSelectionOutlineVisibility(bool visibility);
 };

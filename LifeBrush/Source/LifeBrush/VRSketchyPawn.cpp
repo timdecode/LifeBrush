@@ -104,8 +104,11 @@ void AVRSketchyPawn::PreInitializeComponents()
 		editorComponent = editorComponentActor->FindComponentByClass<UDiscreteElementEditorComponent>();
 
 		// automatically set the editor components simulationActor
-		editorComponent->simulationActor = flexSimulationActor;
-		editorComponent->exemplarActor = exemplarActor;
+		if (editorComponent)
+		{
+			editorComponent->simulationActor = flexSimulationActor;
+			editorComponent->exemplarActor = exemplarActor;
+		}
 	}
 
 	// tick after the RGC

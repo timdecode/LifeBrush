@@ -27,6 +27,7 @@
 #include "AlgorithmEnums.h"
 
 #include "ctpl_stl.h"
+#include "aabbcc/unrealAABB.h"
 
 struct FGraphSnapshot;
 
@@ -809,7 +810,14 @@ protected:
 	FGraphNodeHandle _copyExemplarToOutput( FGraphNodeHandle sourceElement, FGraph& sourceGraph, const Eigen::Vector3f& position, Algorithm::ExampleSelection& selection, FQuat q = FQuat::Identity );
 
 
+public:
+	void updateParticleBVH();
 protected:
+	typedef unrealAABB::Tree BVH_t;
+	BVH_t _particleBVH;
+
+protected:
+
     bool _didInit = false;
     
 	SynthesisContext& _context;

@@ -687,8 +687,10 @@ bool FEdgeStorage::Serialize(FArchive& Ar)
 	// We'll use it if we don't have the _scripStruct anymore, on load.
 	const int64 location_endOfObjects = Ar.Tell();
 	int64 endOfObjects = 0;
-	Ar << endOfObjects;
-
+	if (Ar.IsLoading() || Ar.IsSaving())
+	{
+		Ar << endOfObjects;
+	}
 	if (_scriptStruct == nullptr && Ar.IsLoading())
 	{
 		// If we lost the componentClass, skip over whatever might have been in the archive
@@ -726,7 +728,7 @@ bool FEdgeStorage::Serialize(FArchive& Ar)
 
 	// If we are saving, we now know where the end of the edge storage block is. Write
 	// it back to the header, at location_endOfObjects.
-	if (_scriptStruct && Ar.IsSaving())
+	if (Ar.IsSaving())
 	{
 		endOfObjects = Ar.Tell();
 		Ar.Seek(location_endOfObjects);

@@ -189,7 +189,7 @@ void UMLElementSimulation::componentAdded(FGraphNodeHandle handle, ComponentType
 
 		FMLElement& element = graph->componentStorage<FMLElement>().componentForNode(handle);
 
-		element.rigid = handle;
+		element.rigid = rigidHandle;
 
 		FVector p = graph->node(handle).position;
 
@@ -199,6 +199,27 @@ void UMLElementSimulation::componentAdded(FGraphNodeHandle handle, ComponentType
 			elementBVH.updateParticle(particleIndex, p, _hackRadius);
 		else
 			elementBVH.insertParticle(particleIndex, p, _hackRadius);
+	}
+}
+
+void UMLElementSimulation::componentRemoved(FGraphNodeHandle handle, ComponentType type)
+{
+	static const ComponentType TOccluderType = componentType<FMLOccluder>();
+	static const ComponentType TElementType = componentType<FMLElement>();
+
+	if (TOccluderType == type)
+	{
+		int32 particleIndex = handle.index;
+
+		if (occluderBVH.containsParticle(particleIndex))
+			occluderBVH.removeParticle(particleIndex);
+	}
+	else if (TElementType == type)
+	{
+		int32 particleIndex = handle.index;
+
+		if (elementBVH.containsParticle(particleIndex))
+			elementBVH.removeParticle(particleIndex);
 	}
 }
 
@@ -1033,6 +1054,8 @@ std::vector<UMLElementSimulation::RuleInteractions> UMLElementSimulation::_inter
 
 	for (FMLElement& e_a : elements)
 	{
+		if( !e_a.isValid() ) continue;
+
 		FGraphNode& node_a = graph->node(e_a.nodeHandle());
 
 		FQuat q_a = node_a.orientation;
@@ -1055,9 +1078,10 @@ std::vector<UMLElementSimulation::RuleInteractions> UMLElementSimulation::_inter
 		elementBVH.query(query, [&](unsigned int particleIndex) {
 			FGraphNodeHandle h_b(particleIndex);
 
-			FMLElement& e_b = elements.componentForNode(h_b);
+			FMLElement * e_b = elements.componentPtrForNode(h_b);
 
-			if (&e_a == &e_b) return true;
+			if (!e_b || !e_b->isValid()) return true;
+			if (&e_a == e_b) return true;
 
 			FGraphNode& node_b = graph->node(h_b);
 

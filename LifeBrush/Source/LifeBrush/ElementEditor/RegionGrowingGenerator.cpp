@@ -53,6 +53,8 @@ void URegionGrowingGenerator::attach(SynthesisContext * context, UGraphSimulatio
 	// make sure the kd-tree is updated, other generators might not do this
 	_outputContext->domain.rebalance();
 
+	_algorithm->updateParticleBVH();
+
 	_outputSimulationManager->detachAllSimulations();
 
 	_outputSimulationManager->registerSimulation<UMeshSimulation>();
@@ -108,14 +110,9 @@ void URegionGrowingGenerator::tick(float deltaT)
 	_outputContext->domain.graph.pushTransactionContext();
 	{
 		// tick the simulation manager
-		if (pauseSynthesis)
-		{
-			_outputSimulationManager->tick_paused(deltaT);
-		}
-		else
-		{
-			_outputSimulationManager->tick(deltaT);
-		}
+
+		_outputSimulationManager->tick_paused(deltaT);
+
 
 		// the exemplar is always paused
 		_exemplarSimulationManager->tick_paused(deltaT);

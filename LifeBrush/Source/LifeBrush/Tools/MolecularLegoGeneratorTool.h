@@ -29,4 +29,28 @@ public:
 
 	virtual void faceUp_released(USceneComponent * interactionPoint = nullptr) override;
 
+	virtual void oneHandStart(UPrimitiveComponent * hand) override;
+	virtual void oneHandEnd(UPrimitiveComponent * hand) override;
+
+	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform) override;
+
+	virtual void loseFocus() override;
+
+protected:
+	TArray<AElementActor*> _overlappingPrototypes(UPrimitiveComponent * hand, float radius);
+
+	void _tickSelection(float dt, UPrimitiveComponent * hand, FTransform lastTransform);
+
+	void _hideSelection();
+	void _showSelection();
+
+protected:
+	enum class Mode {
+		Selecting,
+		Painting
+	};
+
+	Mode _mode = Mode::Selecting;
+
+	AElementActor * _selection = nullptr;
 };

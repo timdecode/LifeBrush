@@ -167,6 +167,8 @@ void URegionGrowingGeneratorTool::init(FRGC_UToolInitProperties& initProperties)
 
 void URegionGrowingGeneratorTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
+	if (!generator()) return;
+
 	generator()->brushSize = _brushRadius();
 
 	Super::tickOneHand(dt, hand, lastTransform);

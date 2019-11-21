@@ -12,6 +12,8 @@
 
 #include "MolecularLegoGenerator.generated.h"
 
+class AElementActor;
+
 UENUM(BlueprintType)
 enum class EMolecularLegotGeneratorMode : uint8
 {
@@ -56,6 +58,8 @@ protected:
 
 	TMap<FGraphNodeHandle, uint32_t> segmentForHandle;
 
+	TArray<FGraphNodeHandle> _selection;
+
 public:
 	virtual ~UMolecularLegoGenerator() {}
 
@@ -75,6 +79,9 @@ public:
 
 	virtual std::vector<UClass *> dependencies();
 
+public:
+	void setSelection(TArray<AElementActor*> selection);
+
 protected:
 	void _initPath();
 	void _tick(float deltaT);
@@ -84,7 +91,7 @@ protected:
 	void _buildElementBVH();
 
 	UGraphSimulationManager * exampleSimulationManager();
-	std::vector<FGraphNodeHandle> exampleSelection();
+	TArray<FGraphNodeHandle> exampleSelection();
 
 	FGraphNodeHandle _copyElement(FGraphNodeHandle sourceNodeHandle, FGraph& sourceGraph, FGraph& targetGraph, const FVector position, const FQuat rotation);
 

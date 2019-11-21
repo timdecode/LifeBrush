@@ -244,7 +244,7 @@ void AElementActor::readFromElement(ElementTuple& tuple, FGraph& graph)
 	graphObjects = Utility::boxComponents(tuple.node, graph);
 }
 
-void AElementActor::showSelectionOutline()
+void AElementActor::_setSelectionOutlineVisibility(bool visibility)
 {
 	UStaticMeshComponent * mesh = FindComponentByClass<UStaticMeshComponent>();
 
@@ -263,29 +263,16 @@ void AElementActor::showSelectionOutline()
 	for (USceneComponent * child : children)
 	{
 		if (UStaticMeshComponent * childMesh = Cast<UStaticMeshComponent>(child))
-			childMesh->SetRenderCustomDepth(true);
+			childMesh->SetRenderCustomDepth(visibility);
 	}
+}
+
+void AElementActor::showSelectionOutline()
+{
+	_setSelectionOutlineVisibility(true);
 }
 
 void AElementActor::hideSelectionOutline()
 {
-	UStaticMeshComponent * mesh = FindComponentByClass<UStaticMeshComponent>();
-
-	// we visualize selection through a post-process effect on the custom depth
-	if (mesh)
-	{
-		mesh->SetRenderCustomDepth(false);
-	}
-
-	// hide the children
-	USceneComponent * sceneComponent = this->GetRootComponent();
-	TArray<USceneComponent*> children;
-
-	sceneComponent->GetChildrenComponents(true, children);
-	
-	for (USceneComponent * child : children)
-	{
-		if( UStaticMeshComponent * childMesh = Cast<UStaticMeshComponent>(child) )
-			childMesh->SetRenderCustomDepth(false);
-	}
+	_setSelectionOutlineVisibility(false);
 }

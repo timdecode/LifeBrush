@@ -102,6 +102,9 @@ protected:
 	UColoredLineFactory* _lineFactory;
 
 	UPROPERTY()
+	URuntimeMeshComponent * _runtimeMeshComponent;
+
+	UPROPERTY()
 	TMap<int32, int32> groupToSection;
 
 	UPROPERTY()
@@ -125,6 +128,8 @@ protected:
 
 protected:
 	int32 addSection(UMaterialInterface * material);
+
+	void _initRMC();
 
 
 	void _updateDesaturated();
