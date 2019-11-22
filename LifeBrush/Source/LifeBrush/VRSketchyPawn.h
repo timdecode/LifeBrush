@@ -292,6 +292,8 @@ protected:
 	void _startSimulation();
 	void _endSimulation();
 
+	void _setExemplarVisibility(bool visibility);
+
 	void _startCurrentToolLeftTrigger();
 	void _startCurrentToolRightTrigger();
 

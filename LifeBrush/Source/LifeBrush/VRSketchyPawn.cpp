@@ -622,12 +622,7 @@ void AVRSketchyPawn::_startSimulation()
 
 	flexSimulation->begin();
 
-	if (editorComponent && editorComponent->exemplarActor)
-	{
-		editorComponent->exemplarActor->GetRootComponent()->SetVisibility(false, true);
-		flexComponent->rulesActor->GetRootComponent()->SetVisibility(false, true);
-		flexComponent->swarmGrammarRulesActor->GetRootComponent()->SetVisibility(false, true);
-	}
+	_setExemplarVisibility(false);
 
 	// keep it paused
 	flexSimulation->pause();
@@ -644,16 +639,23 @@ void AVRSketchyPawn::_endSimulation()
 
 	flexSimulation->pause();
 
-	if (editorComponent && editorComponent->exemplarActor)
-	{
-		editorComponent->exemplarActor->GetRootComponent()->SetVisibility(true, true);
-		flexComponent->rulesActor->GetRootComponent()->SetVisibility(true, true);
-		flexComponent->swarmGrammarRulesActor->GetRootComponent()->SetVisibility(true, true);
-	}
+	_setExemplarVisibility(true);
 
 	editorComponent->start();
 
 	// flexSimulation->clear();
+}
+
+void AVRSketchyPawn::_setExemplarVisibility(bool visibility)
+{
+	if (editorComponent && editorComponent->exemplarActor)
+		editorComponent->exemplarActor->GetRootComponent()->SetVisibility(visibility, true);
+
+	if (flexComponent)
+	{
+		if (flexComponent->rulesActor) flexComponent->rulesActor->GetRootComponent()->SetVisibility(visibility, true);
+		if (flexComponent->swarmGrammarRulesActor) flexComponent->swarmGrammarRulesActor->GetRootComponent()->SetVisibility(visibility, true);
+	}
 }
 
 void AVRSketchyPawn::leftTrigger( float value )
