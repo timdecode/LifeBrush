@@ -622,6 +622,13 @@ void AVRSketchyPawn::_startSimulation()
 
 	flexSimulation->begin();
 
+	if (editorComponent && editorComponent->exemplarActor)
+	{
+		editorComponent->exemplarActor->GetRootComponent()->SetVisibility(false, true);
+		flexComponent->rulesActor->GetRootComponent()->SetVisibility(false, true);
+		flexComponent->swarmGrammarRulesActor->GetRootComponent()->SetVisibility(false, true);
+	}
+
 	// keep it paused
 	flexSimulation->pause();
 }
@@ -636,6 +643,13 @@ void AVRSketchyPawn::_endSimulation()
 	//editorComponent->loadElementDomain(elementDomain);
 
 	flexSimulation->pause();
+
+	if (editorComponent && editorComponent->exemplarActor)
+	{
+		editorComponent->exemplarActor->GetRootComponent()->SetVisibility(true, true);
+		flexComponent->rulesActor->GetRootComponent()->SetVisibility(true, true);
+		flexComponent->swarmGrammarRulesActor->GetRootComponent()->SetVisibility(true, true);
+	}
 
 	editorComponent->start();
 
