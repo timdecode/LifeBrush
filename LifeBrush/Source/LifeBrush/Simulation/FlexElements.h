@@ -1177,6 +1177,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	bool tickFlexSimulation = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	TArray<AActor*> otherSceneActors;
+
 protected:
 	std::unique_ptr<FFlexSimulation> _flexSimulation;
 

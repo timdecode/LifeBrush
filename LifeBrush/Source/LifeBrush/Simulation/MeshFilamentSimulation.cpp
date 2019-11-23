@@ -462,17 +462,17 @@ void UMeshFilamentSimulation::setDesaturated(bool desaturated)
 
 void UMeshFilamentSimulation::_updateDesaturated()
 {
-	if (_lineFactory && _lineFactory->_runtimeMeshComponent)
+	if (_runtimeMeshComponent)
 	{
 		if (isDesaturated)
 		{
-			_lineFactory->_runtimeMeshComponent->SetRenderCustomDepth(true);
-			_lineFactory->_runtimeMeshComponent->SetCustomDepthStencilValue(1); // 1 is the magic value for the desaturation post process volume
+			_runtimeMeshComponent->SetRenderCustomDepth(true);
+			_runtimeMeshComponent->SetCustomDepthStencilValue(1); // 1 is the magic value for the desaturation post process volume
 		}
 		else
 		{
-			_lineFactory->_runtimeMeshComponent->SetRenderCustomDepth(false);
-			_lineFactory->_runtimeMeshComponent->SetCustomDepthStencilValue(0); // 1 is the magic value for the desaturation post process volume
+			_runtimeMeshComponent->SetRenderCustomDepth(false);
+			_runtimeMeshComponent->SetCustomDepthStencilValue(0); // 1 is the magic value for the desaturation post process volume
 		}
 	}
 }

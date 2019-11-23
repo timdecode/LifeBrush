@@ -1114,6 +1114,34 @@ void UVisualization_AgentPathLines::showTotalHistoryForAgents(const std::vector<
 	if( UMeshFilamentSimulation * meshFilamentSimulation = simulationManager->simulation<UMeshFilamentSimulation>() )
 		meshFilamentSimulation->setDesaturated(agents.size() > 0);
 
+	// desaturate lipids
+	if (UFlexSimulationComponent * flexComponent = actor->FindComponentByClass<UFlexSimulationComponent>())
+	{
+		bool desaturated = agents.size() > 0;
+
+		for (AActor * actor : flexComponent->otherSceneActors)
+		{
+			USceneComponent * sceneComponent = actor->GetRootComponent();
+
+			// load any aggregate proxy children
+			TArray<USceneComponent*> children;
+
+			sceneComponent->GetChildrenComponents(true, children);
+
+			for (USceneComponent * component : children)
+			{
+				UPrimitiveComponent * primitive = Cast<UPrimitiveComponent>(component);
+
+				if (primitive)
+				{
+					primitive->SetRenderCustomDepth(desaturated);
+					primitive->SetCustomDepthStencilValue(1);
+				}
+
+			}
+		}
+	}
+
 	_clearDynamicEdgeFactory();
 
 	historyIndex = 0;
