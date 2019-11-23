@@ -20,6 +20,8 @@ void USelectionTool::postInit()
 
 void USelectionTool::oneHandStart( UPrimitiveComponent * hand )
 {
+	clearSelection();
+
 	_createSelectionMeshComponent( hand );
 }
 
@@ -293,24 +295,6 @@ void USelectionTool::_destroySelectionMeshComponent()
 	_selectionMeshComponent->DestroyComponent();
 
 	_selectionMeshComponent = nullptr;
-}
-
-void USelectionTool::makeSelectionAActive()
-{
-	_hideSelection( selectionB );
-
-	_selection = &selectionA;
-
-	_showSelection( selectionA );
-}
-
-void USelectionTool::makeSelectionBActive()
-{
-	_hideSelection( selectionA );
-
-	_selection = &selectionB;
-
-	_showSelection( selectionB );
 }
 
 void USelectionTool::_hideSelection( TSet<AElementActor*>& selected )

@@ -52,12 +52,6 @@ public:
 
 public:
 	UFUNCTION( BlueprintCallable, Category = "LifeBrush" )
-	void makeSelectionAActive();
-
-	UFUNCTION( BlueprintCallable, Category = "LifeBrush" )
-	void makeSelectionBActive();
-
-	UFUNCTION( BlueprintCallable, Category = "LifeBrush" )
 	void clearSelection();
 
 public:
