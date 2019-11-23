@@ -251,7 +251,7 @@ void AElementActor::_setSelectionOutlineVisibility(bool visibility)
 	// we visualize selection through a post-process effect on the custom depth
 	if (mesh)
 	{
-		mesh->SetRenderCustomDepth(true);
+		mesh->SetRenderCustomDepth(visibility);
 	}
 
 	// show the children
