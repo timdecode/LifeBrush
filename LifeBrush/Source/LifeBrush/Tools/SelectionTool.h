@@ -113,7 +113,6 @@ public:
 	{
 		UTool::init(initProperties);
 
-		makeSelectionAActive();
 	}
 
 	// we have this weird postInit method because we need to init this component with a region growing component, but when
