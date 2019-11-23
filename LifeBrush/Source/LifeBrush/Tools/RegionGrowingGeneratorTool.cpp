@@ -41,7 +41,7 @@ void UGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
 
 	if (!_generator || !elementEditor)
 		return;
-
+	
 	auto meshInterface = elementEditor->context()->meshInterface.get();
 
 	FVector location = hand->GetComponentLocation();
@@ -169,9 +169,85 @@ void URegionGrowingGeneratorTool::tickOneHand(float dt, UPrimitiveComponent * ha
 {
 	if (!generator()) return;
 
-	generator()->brushSize = _brushRadius();
+	if (_isSelecting)
+	{
+		_updateBrushMesh();
+		_tickSelection(dt, hand, lastTransform);
+	}
+	else
+	{
+		generator()->brushSize = _brushRadius();
 
-	Super::tickOneHand(dt, hand, lastTransform);
+		Super::tickOneHand(dt, hand, lastTransform);
+	}
+}
+
+void URegionGrowingGeneratorTool::oneHandStart(UPrimitiveComponent * hand)
+{
+	const float radius = 20.0f;
+
+	auto overlaps = _overlappingElementActors(hand, radius);
+
+	if (overlaps.Num() > 0)
+	{
+		_isSelecting = true;
+
+		_clearSelection();
+	}
+	else
+	{
+		_isSelecting = false;
+
+		Super::oneHandStart(hand);
+	}
+}
+
+void URegionGrowingGeneratorTool::oneHandEnd(UPrimitiveComponent * hand)
+{
+	if (_isSelecting)
+	{
+		_isSelecting = false;
+
+		URegionGrowingGenerator * rgGenerator = generator();
+
+		auto asVector = _toVector(_selection);
+
+		rgGenerator->setExampleSelection(asVector);
+	}
+	else
+	{
+		Super::oneHandEnd(hand);
+	}
+}
+
+void URegionGrowingGeneratorTool::gainFocus()
+{
+	if (auto rgGenerator = generator())
+	{
+		std::vector<AElementActor*> nothing;
+		rgGenerator->setExampleSelection(nothing);
+	}
+
+	_clearSelection();
+
+	_isSelecting = false;
+
+	Super::gainFocus();
+}
+
+void URegionGrowingGeneratorTool::loseFocus()
+{
+	if (auto rgGenerator = generator())
+	{
+		std::vector<AElementActor*> nothing;
+		rgGenerator->setExampleSelection(nothing);
+	}
+
+	_clearSelection();
+
+	_isSelecting = false;
+
+	Super::loseFocus();
 }
 
 void URegionGrowingGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
@@ -191,4 +267,82 @@ void URegionGrowingGeneratorTool::_tickOneHand_generate(float dt, UPrimitiveComp
 void URegionGrowingGeneratorTool::_tickOneHand_erase(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
 {
 	Super::_tickOneHand_erase(dt, hand, lastTransform);
+}
+
+void URegionGrowingGeneratorTool::_tickSelection(float dt, UPrimitiveComponent * hand, FTransform lastTransform)
+{
+	// find the nearest element actor
+	auto elementActors = _overlappingElementActors(hand, _brushRadius());
+
+	for (auto actor : elementActors)
+	{
+		_selection.Add(actor);
+	}
+
+	_showSelection();
+}
+
+void URegionGrowingGeneratorTool::_clearSelection()
+{
+	for (AElementActor * elementActor : _selection)
+	{
+		elementActor->hideSelectionOutline();
+	}
+
+	_selection.Empty();
+}
+
+void URegionGrowingGeneratorTool::_showSelection()
+{
+	for (AElementActor * elementActor : _selection)
+	{
+		elementActor->showSelectionOutline();
+	}
+}
+
+std::vector<AElementActor*> URegionGrowingGeneratorTool::_toVector(TSet<AElementActor*> aSet)
+{
+	std::vector<AElementActor*> result;
+
+	for (AElementActor * actor : aSet)
+		result.push_back(actor);
+
+	return result;
+}
+
+TArray<AElementActor*> URegionGrowingGeneratorTool::_overlappingElementActors(UPrimitiveComponent * hand, float radius)
+{
+	// if we are near an AFilamentPrototypeActor we are in selection mode
+	TArray<FOverlapResult> overlaps;
+
+	FCollisionShape collisionShape = FCollisionShape::MakeSphere(radius);
+
+	FCollisionQueryParams params;
+
+	params.AddIgnoredActor(elementEditor->GetOwner());
+	params.AddIgnoredActor(hand->GetOwner());
+
+	bool overlap = elementEditor->GetWorld()->OverlapMultiByChannel(
+		overlaps,
+		hand->GetComponentLocation(),
+		hand->GetComponentRotation().Quaternion(),
+		ECollisionChannel::ECC_WorldDynamic,
+		collisionShape,
+		params
+	);
+
+	TArray<AElementActor*> elementActors;
+
+
+	for (auto overlap : overlaps)
+	{
+		AElementActor * elementActor = Cast<AElementActor>(overlap.Actor.Get());
+
+		if (!elementActor)
+			continue;
+
+		elementActors.Add(elementActor);
+	}
+
+	return elementActors;
 }

@@ -69,7 +69,27 @@ public:
 
 	virtual void tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastTransform) override;
 
+	virtual void oneHandStart(UPrimitiveComponent * hand) override;
+	virtual void oneHandEnd(UPrimitiveComponent * hand) override;
+
+	virtual void gainFocus() override;
+	virtual void loseFocus() override;
+
 protected:
 	virtual void _tickOneHand_generate(float dt, UPrimitiveComponent * hand, FTransform lastTransform);
 	virtual void _tickOneHand_erase(float dt, UPrimitiveComponent * hand, FTransform lastTransform);
+
+	void _tickSelection(float dt, UPrimitiveComponent * hand, FTransform lastTransform);
+
+	void _clearSelection();
+	void _showSelection();
+
+	std::vector<AElementActor*> _toVector(TSet<AElementActor*> aSet);
+
+	TArray<AElementActor*> _overlappingElementActors(UPrimitiveComponent * hand, float radius);
+
+protected:
+	bool _isSelecting = false;
+
+	TSet<AElementActor*> _selection;
 };
