@@ -86,13 +86,7 @@ void UBrushTool::oneHandEnd(UPrimitiveComponent * hand)
 
 void UBrushTool::tickOneHand(float dt, UPrimitiveComponent * hand, FTransform lastToWorldTransform)
 {
-	if (_brushMeshComponent)
-	{
-		float radius = _brushRadius();
-
-		_brushMeshComponent->SetVisibility(shouldShowBrush());
-		_brushMeshComponent->SetRelativeScale3D( FVector(radius * brushMeshScaleFactor) );
-	}
+	_updateBrushMesh();
 }
 
 void UBrushTool::_createBrushMeshComponent(UPrimitiveComponent * selectionPoint)
@@ -118,4 +112,15 @@ float UBrushTool::_brushRadius()
 	float delta = brushMaxRadius - brushMinRadius;
 
 	return brushMinRadius + delta * selectionATriggerValue();
+}
+
+void UBrushTool::_updateBrushMesh()
+{
+	if (_brushMeshComponent)
+	{
+		float radius = _brushRadius();
+
+		_brushMeshComponent->SetVisibility(shouldShowBrush());
+		_brushMeshComponent->SetRelativeScale3D(FVector(radius * brushMeshScaleFactor));
+	}
 }

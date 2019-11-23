@@ -513,6 +513,8 @@ protected:
 	void _createBrushMeshComponent(UPrimitiveComponent * selectionPoint);
 	float _brushRadius();
 
+	void _updateBrushMesh();
+
 protected:
 	UPROPERTY()
 	UStaticMeshComponent * _brushMeshComponent = nullptr;
