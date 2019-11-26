@@ -78,71 +78,35 @@
 			"requirement": "optional"
 		},
 		{
-			"name": "/actions/main/in/ActionDown_L",
+			"name": "/actions/main/in/ActionA",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionDown_R",
+			"name": "/actions/main/in/ActionB",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionLeft_L",
+			"name": "/actions/main/in/Left_NavigationGrab",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionLeft_R",
+			"name": "/actions/main/in/Menu",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionRight_L",
+			"name": "/actions/main/in/Right_NavigationGrab",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionRight_R",
+			"name": "/actions/main/in/TriggerMainAction",
 			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/ActionUp_L",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/ActionUp_R",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/ShowMenu",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/SpiderMan_L",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/SpiderMan_R",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/Touch_L",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/Touch_R",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/TriggerClick_R",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/TriggerPress_R",
-			"type": "boolean"
-		},
-		{
-			"name": "/actions/main/in/BrushSize_L axis",
+			"name": "/actions/main/in/TriggerMain axis",
 			"type": "vector1"
 		},
 		{
-			"name": "/actions/main/in/BrushSize_R axis",
+			"name": "/actions/main/in/TriggerSecondary axis",
 			"type": "vector1"
 		}
 	],
@@ -224,23 +188,14 @@
 			"/actions/main/in/open_console": "Open Console",
 			"/actions/main/out/vibrateleft": "Haptic (Left)",
 			"/actions/main/out/vibrateright": "Haptic (Right)",
-			"/actions/main/in/ActionDown_L": "ActionDown_L",
-			"/actions/main/in/ActionDown_R": "ActionDown_R",
-			"/actions/main/in/ActionLeft_L": "ActionLeft_L",
-			"/actions/main/in/ActionLeft_R": "ActionLeft_R",
-			"/actions/main/in/ActionRight_L": "ActionRight_L",
-			"/actions/main/in/ActionRight_R": "ActionRight_R",
-			"/actions/main/in/ActionUp_L": "ActionUp_L",
-			"/actions/main/in/ActionUp_R": "ActionUp_R",
-			"/actions/main/in/ShowMenu": "ShowMenu",
-			"/actions/main/in/SpiderMan_L": "SpiderMan_L",
-			"/actions/main/in/SpiderMan_R": "SpiderMan_R",
-			"/actions/main/in/Touch_L": "Touch_L",
-			"/actions/main/in/Touch_R": "Touch_R",
-			"/actions/main/in/TriggerClick_R": "TriggerClick_R",
-			"/actions/main/in/TriggerPress_R": "TriggerPress_R",
-			"/actions/main/in/BrushSize_L axis": "BrushSize_L",
-			"/actions/main/in/BrushSize_R axis": "BrushSize_R",
+			"/actions/main/in/ActionA": "ActionA",
+			"/actions/main/in/ActionB": "ActionB",
+			"/actions/main/in/Left_NavigationGrab": "Left_NavigationGrab",
+			"/actions/main/in/Menu": "Menu",
+			"/actions/main/in/Right_NavigationGrab": "Right_NavigationGrab",
+			"/actions/main/in/TriggerMainAction": "TriggerMainAction",
+			"/actions/main/in/TriggerMain axis": "TriggerMain",
+			"/actions/main/in/TriggerSecondary axis": "TriggerSecondary",
 			"/actions/main": "Main Game Actions"
 		}
 	]

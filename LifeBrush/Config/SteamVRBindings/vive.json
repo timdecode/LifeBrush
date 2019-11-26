@@ -1,5 +1,5 @@
 {
-	"name": "Default bindings for Vive Headset",
+	"name": "Default bindings for Vive",
 	"controller_type": "vive",
 	"bindings":
 	{
@@ -8,5 +8,5 @@
 			"sources": []
 		}
 	},
-	"description": "LifeBrush"
+	"description": "UE4Game"
 }

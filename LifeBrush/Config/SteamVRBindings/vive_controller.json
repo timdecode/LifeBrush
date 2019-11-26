@@ -8,21 +8,6 @@
 			"sources": [
 				{
 					"mode": "dpad",
-					"path": "/user/hand/left/input/trackpad",
-					"parameters":
-					{
-						"sub_mode": "click"
-					},
-					"inputs":
-					{
-						"south":
-						{
-							"output": "/actions/main/in/ActionDown_L"
-						}
-					}
-				},
-				{
-					"mode": "dpad",
 					"path": "/user/hand/right/input/trackpad",
 					"parameters":
 					{
@@ -30,69 +15,9 @@
 					},
 					"inputs":
 					{
-						"south":
+						"north":
 						{
-							"output": "/actions/main/in/ActionDown_R"
-						}
-					}
-				},
-				{
-					"mode": "dpad",
-					"path": "/user/hand/left/input/trackpad",
-					"parameters":
-					{
-						"sub_mode": "click"
-					},
-					"inputs":
-					{
-						"west":
-						{
-							"output": "/actions/main/in/ActionLeft_L"
-						}
-					}
-				},
-				{
-					"mode": "dpad",
-					"path": "/user/hand/right/input/trackpad",
-					"parameters":
-					{
-						"sub_mode": "click"
-					},
-					"inputs":
-					{
-						"west":
-						{
-							"output": "/actions/main/in/ActionLeft_R"
-						}
-					}
-				},
-				{
-					"mode": "dpad",
-					"path": "/user/hand/left/input/trackpad",
-					"parameters":
-					{
-						"sub_mode": "click"
-					},
-					"inputs":
-					{
-						"east":
-						{
-							"output": "/actions/main/in/ActionRight_L"
-						}
-					}
-				},
-				{
-					"mode": "dpad",
-					"path": "/user/hand/right/input/trackpad",
-					"parameters":
-					{
-						"sub_mode": "click"
-					},
-					"inputs":
-					{
-						"east":
-						{
-							"output": "/actions/main/in/ActionRight_R"
+							"output": "/actions/main/in/ActionA"
 						}
 					}
 				},
@@ -107,7 +32,7 @@
 					{
 						"north":
 						{
-							"output": "/actions/main/in/ActionUp_L"
+							"output": "/actions/main/in/ActionA"
 						}
 					}
 				},
@@ -120,20 +45,24 @@
 					},
 					"inputs":
 					{
-						"north":
+						"south":
 						{
-							"output": "/actions/main/in/ActionUp_R"
+							"output": "/actions/main/in/ActionB"
 						}
 					}
 				},
 				{
-					"mode": "button",
-					"path": "/user/hand/right/input/application_menu",
+					"mode": "dpad",
+					"path": "/user/hand/left/input/trackpad",
+					"parameters":
+					{
+						"sub_mode": "click"
+					},
 					"inputs":
 					{
-						"click":
+						"south":
 						{
-							"output": "/actions/main/in/ShowMenu"
+							"output": "/actions/main/in/ActionB"
 						}
 					}
 				},
@@ -144,7 +73,29 @@
 					{
 						"click":
 						{
-							"output": "/actions/main/in/SpiderMan_L"
+							"output": "/actions/main/in/Left_NavigationGrab"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/right/input/application_menu",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/Menu"
+						}
+					}
+				},
+				{
+					"mode": "button",
+					"path": "/user/hand/left/input/application_menu",
+					"inputs":
+					{
+						"click":
+						{
+							"output": "/actions/main/in/Menu"
 						}
 					}
 				},
@@ -155,29 +106,7 @@
 					{
 						"click":
 						{
-							"output": "/actions/main/in/SpiderMan_R"
-						}
-					}
-				},
-				{
-					"mode": "button",
-					"path": "/user/hand/left/input/trackpad",
-					"inputs":
-					{
-						"touch":
-						{
-							"output": "/actions/main/in/Touch_L"
-						}
-					}
-				},
-				{
-					"mode": "button",
-					"path": "/user/hand/right/input/trackpad",
-					"inputs":
-					{
-						"touch":
-						{
-							"output": "/actions/main/in/Touch_R"
+							"output": "/actions/main/in/Right_NavigationGrab"
 						}
 					}
 				},
@@ -188,18 +117,18 @@
 					{
 						"click":
 						{
-							"output": "/actions/main/in/TriggerClick_R"
+							"output": "/actions/main/in/TriggerMainAction"
 						}
 					}
 				},
 				{
-					"mode": "button",
+					"mode": "trigger",
 					"path": "/user/hand/right/input/trigger",
 					"inputs":
 					{
-						"click":
+						"pull":
 						{
-							"output": "/actions/main/in/TriggerPress_R"
+							"output": "/actions/main/in/TriggerMain axis"
 						}
 					}
 				},
@@ -210,18 +139,7 @@
 					{
 						"pull":
 						{
-							"output": "/actions/main/in/BrushSize_L axis"
-						}
-					}
-				},
-				{
-					"mode": "trigger",
-					"path": "/user/hand/right/input/trigger",
-					"inputs":
-					{
-						"pull":
-						{
-							"output": "/actions/main/in/BrushSize_R axis"
+							"output": "/actions/main/in/TriggerSecondary axis"
 						}
 					}
 				}
@@ -259,5 +177,5 @@
 			]
 		}
 	},
-	"description": "LifeBrush"
+	"description": "UE4Game"
 }
