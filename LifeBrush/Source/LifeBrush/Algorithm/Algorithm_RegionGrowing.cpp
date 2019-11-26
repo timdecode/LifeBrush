@@ -13,6 +13,7 @@
 
 #include "dbscan.hpp"
 #include "SpaceMapping.hpp"
+#include "ShipEditorSimulation/MeshSimulation.h"
 
 #include "Eigen/Sparse"
 #include "Eigen/Geometry"
@@ -84,10 +85,20 @@ AlgorithmResult Algorithm_RegionGrowing::_reassignSourceExamples()
 
 		// hack reassign graph objects
 		// for now, we'll just copy all of the other components to this guy
+		element.node.removeComponents(graph());
+
 		for (auto& componentType : nearestElement.node.components)
 		{
 			FGraphCopyContext::copyComponent(componentType, nearestElement.node, element.node, _exemplar.graph, graph());
 		}
+
+		// mark the mesh as dirty
+		if (FGraphMesh * mesh = graph().componentPtr<FGraphMesh>(elementHandle))
+		{
+			mesh->markDirty();
+		}
+
+		element.node.scale = nearestElement.node.scale;
 
 		result.modified.push_back(elementHandle);
 	}
