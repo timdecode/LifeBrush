@@ -319,6 +319,8 @@ protected:
 
 	void _fadeBackground(bool fade);
 
+	void _setOtherActorsDesaturation(bool desaturated);
+
 	int32 _sectionForMaterial(UMaterialInterface* material);
 
 	FLinearColor _colorForNode(FGraphNodeHandle node);
