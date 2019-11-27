@@ -55,11 +55,6 @@ void UTool::_loadWidgets()
 
 UBrushTool::~UBrushTool()
 {
-	if (_brushMeshComponent && _brushMeshComponent->IsValidLowLevel())
-	{
-		_brushMeshComponent->DestroyComponent();
-		_brushMeshComponent = nullptr;
-	}
 }
 
 void UBrushTool::loseFocus()
