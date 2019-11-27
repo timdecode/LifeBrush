@@ -5,7 +5,7 @@
 			"app_key": "application.generated.ue.ue4game.ue4editor.exe",
 			"launch_type": "url",
 			"url": "steam://launch/",
-			"action_manifest_path": "C:/Users/timothyd/Documents/GitHub/PhD/Unreal/LifeBrush/Config/SteamVRBindings/steamvr_manifest.json",
+			"action_manifest_path": "C:/Users/timothyd/Documents/GitHub/LifeBrush/LifeBrush/Config/SteamVRBindings/steamvr_manifest.json",
 			"strings":
 			{
 				"en_us":
