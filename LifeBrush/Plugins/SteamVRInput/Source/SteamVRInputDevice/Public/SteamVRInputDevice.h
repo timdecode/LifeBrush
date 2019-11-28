@@ -42,6 +42,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "Serialization/JsonSerializer.h"
 #include "SteamVRInputTypes.h"
 #include "SteamVRInputPublic.h"
+#include "Misc/MessageDialog.h"
 
 class STEAMVRINPUTDEVICE_API FSteamVRInputDevice : public IInputDevice, public IMotionController, public IHapticDevice
 {
@@ -122,6 +123,9 @@ public:
 	/** Have the controller bindings regenerated. Used by the plugin Editor UI  */
 	void RegenerateControllerBindings();
 
+	/** Have the controller bindings regenerated. Used by the engine Editor UI  */
+	void OnBindingsChangeHandle();
+
 	/** Reload the action manifest to the SteamVR system. Use if you changed the action manifest manually */
 	void ReloadActionManifest();
 #endif
@@ -173,6 +177,12 @@ public:
 
 	/** Current input values of the active player controllers  */
 	FInputDeviceState ControllerStates[SteamVRInputDeviceConstants::MaxControllers];
+
+	/** Holds the action sets that will be handled by the SteamVR Input System  */
+	TArray<FSteamVRInputActionSet> SteamVRInputActionSets;
+
+	/** Holds the action sets that will be fed in to OpenVR  */
+	VRActiveActionSet_t ActiveActionSets[MAX_ACTION_SETS];
 
 	/** Holds the actions that will be handled by the SteamVR Input System  */
 	TArray<FSteamVRInputAction> Actions;
@@ -314,14 +324,18 @@ private:
 	/** Setup the keys used by supported SteamVR Controllers  */
 	void InitControllerKeys();
 
+	/** Process all input action events for a give action set */
+	void ProcessActionEvents(FSteamVRInputActionSet SteamVRInputActionSet);
+
 	/**
 	* Create the action manifest used by the SteamVR Input System
 	* @param GenerateActions - Whether to generate main actions from the project input settings
 	* @param GenerateBindings - Whether to generate the controller bindings for all supported SteamVR controllers
 	* @param RegisterApp - Whether to register currently running application as an Editor session
 	* @param DeleteBindings - Whether to overwrite current controller bindings (if any)
+	* @param bRegisterManifestOnly - Whether to register the application and action manifest or just the manifest
 	*/
-	void GenerateActionManifest(bool GenerateActions=true, bool GenerateBindings=true, bool RegisterApp=true, bool DeleteBindings=false);
+	void GenerateActionManifest(bool GenerateActions=true, bool GenerateBindings=true, bool RegisterApp=true, bool DeleteBindings=false, bool bRegisterManifestOnly=false);
 
 	/**
 	* Create the application manifest for an Editor session
@@ -362,7 +376,7 @@ private:
 	* Registers an Editor session to the SteamVR system
 	* @param ManifestPath - Path to the Application Manifest that will be generated. By default this will be under the Config folder
 	*/
-	void RegisterApplication(FString ManifestPath);
+	void RegisterApplication(FString ManifestPath, bool bRegisterManifestOnly=false);
 
 	/** 
 	* Get the Skeletal Input Handle for a give controller input path

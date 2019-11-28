@@ -31,72 +31,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 #include "InputCoreTypes.h"
 
-namespace TemporaryActionKeys
+namespace GenericKeys
 {
-	FKey SteamVR_Input_Temporary_Action_1("SteamVR_Input_Temporary_Action_1");
-	FKey SteamVR_Input_Temporary_Action_2("SteamVR_Input_Temporary_Action_2");
-	FKey SteamVR_Input_Temporary_Action_3("SteamVR_Input_Temporary_Action_3");
-	FKey SteamVR_Input_Temporary_Action_4("SteamVR_Input_Temporary_Action_4");
-	FKey SteamVR_Input_Temporary_Action_5("SteamVR_Input_Temporary_Action_5");
-	FKey SteamVR_Input_Temporary_Action_6("SteamVR_Input_Temporary_Action_6");
-	FKey SteamVR_Input_Temporary_Action_7("SteamVR_Input_Temporary_Action_7");
-	FKey SteamVR_Input_Temporary_Action_8("SteamVR_Input_Temporary_Action_8");
-	FKey SteamVR_Input_Temporary_Action_9("SteamVR_Input_Temporary_Action_9");
-	FKey SteamVR_Input_Temporary_Action_10("SteamVR_Input_Temporary_Action_10");
-	FKey SteamVR_Input_Temporary_Action_11("SteamVR_Input_Temporary_Action_11");
-	FKey SteamVR_Input_Temporary_Action_12("SteamVR_Input_Temporary_Action_12");
-	FKey SteamVR_Input_Temporary_Action_13("SteamVR_Input_Temporary_Action_13");
-	FKey SteamVR_Input_Temporary_Action_14("SteamVR_Input_Temporary_Action_14");
-	FKey SteamVR_Input_Temporary_Action_15("SteamVR_Input_Temporary_Action_15");
-	FKey SteamVR_Input_Temporary_Action_16("SteamVR_Input_Temporary_Action_16");
-	FKey SteamVR_Input_Temporary_Action_17("SteamVR_Input_Temporary_Action_17");
-	FKey SteamVR_Input_Temporary_Action_18("SteamVR_Input_Temporary_Action_18");
-	FKey SteamVR_Input_Temporary_Action_19("SteamVR_Input_Temporary_Action_19");
-	FKey SteamVR_Input_Temporary_Action_20("SteamVR_Input_Temporary_Action_20");
-	FKey SteamVR_Input_Temporary_Action_21("SteamVR_Input_Temporary_Action_21");
-	FKey SteamVR_Input_Temporary_Action_22("SteamVR_Input_Temporary_Action_22");
-	FKey SteamVR_Input_Temporary_Action_23("SteamVR_Input_Temporary_Action_23");
-	FKey SteamVR_Input_Temporary_Action_24("SteamVR_Input_Temporary_Action_24");
-	FKey SteamVR_Input_Temporary_Action_25("SteamVR_Input_Temporary_Action_25");
-	FKey SteamVR_Input_Temporary_Action_26("SteamVR_Input_Temporary_Action_26");
-	FKey SteamVR_Input_Temporary_Action_27("SteamVR_Input_Temporary_Action_27");
-	FKey SteamVR_Input_Temporary_Action_28("SteamVR_Input_Temporary_Action_28");
-	FKey SteamVR_Input_Temporary_Action_29("SteamVR_Input_Temporary_Action_29");
-	FKey SteamVR_Input_Temporary_Action_30("SteamVR_Input_Temporary_Action_30");
-	FKey SteamVR_Input_Temporary_Action_31("SteamVR_Input_Temporary_Action_31");
-	FKey SteamVR_Input_Temporary_Action_32("SteamVR_Input_Temporary_Action_32");
-	FKey SteamVR_Input_Temporary_Action_33("SteamVR_Input_Temporary_Action_33");
-	FKey SteamVR_Input_Temporary_Action_34("SteamVR_Input_Temporary_Action_34");
-	FKey SteamVR_Input_Temporary_Action_35("SteamVR_Input_Temporary_Action_35");
-	FKey SteamVR_Input_Temporary_Action_36("SteamVR_Input_Temporary_Action_36");
-	FKey SteamVR_Input_Temporary_Action_37("SteamVR_Input_Temporary_Action_37");
-	FKey SteamVR_Input_Temporary_Action_38("SteamVR_Input_Temporary_Action_38");
-	FKey SteamVR_Input_Temporary_Action_39("SteamVR_Input_Temporary_Action_39");
-	FKey SteamVR_Input_Temporary_Action_40("SteamVR_Input_Temporary_Action_40");
-	FKey SteamVR_Input_Temporary_Action_41("SteamVR_Input_Temporary_Action_41");
-	FKey SteamVR_Input_Temporary_Action_42("SteamVR_Input_Temporary_Action_42");
-	FKey SteamVR_Input_Temporary_Action_43("SteamVR_Input_Temporary_Action_43");
-	FKey SteamVR_Input_Temporary_Action_44("SteamVR_Input_Temporary_Action_44");
-	FKey SteamVR_Input_Temporary_Action_45("SteamVR_Input_Temporary_Action_45");
-	FKey SteamVR_Input_Temporary_Action_46("SteamVR_Input_Temporary_Action_46");
-	FKey SteamVR_Input_Temporary_Action_47("SteamVR_Input_Temporary_Action_47");
-	FKey SteamVR_Input_Temporary_Action_48("SteamVR_Input_Temporary_Action_48");
-	FKey SteamVR_Input_Temporary_Action_49("SteamVR_Input_Temporary_Action_49");
-	FKey SteamVR_Input_Temporary_Action_50("SteamVR_Input_Temporary_Action_50");
-	FKey SteamVR_Input_Temporary_Action_51("SteamVR_Input_Temporary_Action_51");
-	FKey SteamVR_Input_Temporary_Action_52("SteamVR_Input_Temporary_Action_52");
-	FKey SteamVR_Input_Temporary_Action_53("SteamVR_Input_Temporary_Action_53");
-	FKey SteamVR_Input_Temporary_Action_54("SteamVR_Input_Temporary_Action_54");
-	FKey SteamVR_Input_Temporary_Action_55("SteamVR_Input_Temporary_Action_55");
-	FKey SteamVR_Input_Temporary_Action_56("SteamVR_Input_Temporary_Action_56");
-	FKey SteamVR_Input_Temporary_Action_57("SteamVR_Input_Temporary_Action_57");
-	FKey SteamVR_Input_Temporary_Action_58("SteamVR_Input_Temporary_Action_58");
-	FKey SteamVR_Input_Temporary_Action_59("SteamVR_Input_Temporary_Action_59");
-	FKey SteamVR_Input_Temporary_Action_60("SteamVR_Input_Temporary_Action_60");
-	FKey SteamVR_Input_Temporary_Action_61("SteamVR_Input_Temporary_Action_61");
-	FKey SteamVR_Input_Temporary_Action_62("SteamVR_Input_Temporary_Action_62");
-	FKey SteamVR_Input_Temporary_Action_63("SteamVR_Input_Temporary_Action_63");
-	FKey SteamVR_Input_Temporary_Action_64("SteamVR_Input_Temporary_Action_64");
+	const FKey SteamVR_MotionController_None("SteamVR_MotionController_None");
+	const FKey SteamVR_HMD_Proximity("SteamVR_HMD_Proximity");
 }
 
 namespace IndexControllerKeys
@@ -222,6 +160,80 @@ namespace ViveControllerKeys
 	const FKey SteamVR_Vive_Controller_Trackpad_Down_Right("SteamVR_Vive_Controller_Trackpad_Down_Right");
 	const FKey SteamVR_Vive_Controller_Trackpad_L_Right("SteamVR_Vive_Controller_Trackpad_L_Right");
 	const FKey SteamVR_Vive_Controller_Trackpad_R_Right("SteamVR_Vive_Controller_Trackpad_R_Right");
+}
+
+namespace CosmosControllerKeys
+{
+	// Application
+	const FKey SteamVR_HTC_Cosmos_Application_Press_Left("SteamVR_HTC_Cosmos_Application_Press_Left");
+	const FKey SteamVR_HTC_Cosmos_Application_Press_Right("SteamVR_HTC_Cosmos_Application_Press_Right");
+
+	// Button A
+	const FKey SteamVR_HTC_Cosmos_A_Press("SteamVR_HTC_Cosmos_A_Press");
+	const FKey SteamVR_HTC_Cosmos_A_Touch("SteamVR_HTC_Cosmos_A_Touch");
+
+	// Button B
+	const FKey SteamVR_HTC_Cosmos_B_Press("SteamVR_HTC_Cosmos_B_Press");
+	const FKey SteamVR_HTC_Cosmos_B_Touch("SteamVR_HTC_Cosmos_B_Touch");
+
+	// Button X
+	const FKey SteamVR_HTC_Cosmos_X_Press("SteamVR_HTC_Cosmos_X_Press");
+	const FKey SteamVR_HTC_Cosmos_X_Touch("SteamVR_HTC_Cosmos_X_Touch");
+
+	// Button Y
+	const FKey SteamVR_HTC_Cosmos_Y_Press("SteamVR_HTC_Cosmos_Y_Press");
+	const FKey SteamVR_HTC_Cosmos_Y_Touch("SteamVR_HTC_Cosmos_Y_Touch");
+
+	// Grip
+	const FKey SteamVR_HTC_Cosmos_Grip_Click_Left("SteamVR_HTC_Cosmos_Grip_Click_Left");
+	const FKey SteamVR_HTC_Cosmos_Grip_Click_Right("SteamVR_HTC_Cosmos_Grip_Click_Right");
+
+	// @HTC to finalize
+	//const FKey SteamVR_HTC_Cosmos_Grip_Press_Left("SteamVR_HTC_Cosmos_Grip_Press_Left");
+	//const FKey SteamVR_HTC_Cosmos_Grip_Press_Right("SteamVR_HTC_Cosmos_Grip_Press_Right");
+
+	//const FKey SteamVR_HTC_Cosmos_Grip_Touch_Left("SteamVR_HTC_Cosmos_Grip_Touch_Left");
+	//const FKey SteamVR_HTC_Cosmos_Grip_Touch_Right("SteamVR_HTC_Cosmos_Grip_Touch_Right");
+
+	const FKey SteamVR_HTC_Cosmos_Grip_Pull_Left("SteamVR_HTC_Cosmos_Grip_Pull_Left");
+	const FKey SteamVR_HTC_Cosmos_Grip_Pull_Right("SteamVR_HTC_Cosmos_Grip_Pull_Right");
+
+	// Bumper (L1/R1)
+	const FKey SteamVR_HTC_Cosmos_Bumper_Click_Left("SteamVR_HTC_Cosmos_Bumper_Click_Left");
+	const FKey SteamVR_HTC_Cosmos_Bumper_Click_Right("SteamVR_HTC_Cosmos_Bumper_Click_Right");
+
+	// Trigger (L2/R2)
+	const FKey SteamVR_HTC_Cosmos_Trigger_Click_Left("SteamVR_HTC_Cosmos_Trigger_Click_Left");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Press_Left("SteamVR_HTC_Cosmos_Trigger_Press_Left");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Touch_Left("SteamVR_HTC_Cosmos_Trigger_Touch_Left");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Pull_Left("SteamVR_HTC_Cosmos_Trigger_Pull_Left");
+
+	const FKey SteamVR_HTC_Cosmos_Trigger_Click_Right("SteamVR_HTC_Cosmos_Trigger_Click_Right");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Press_Right("SteamVR_HTC_Cosmos_Trigger_Press_Right");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Touch_Right("SteamVR_HTC_Cosmos_Trigger_Touch_Right");
+	const FKey SteamVR_HTC_Cosmos_Trigger_Pull_Right("SteamVR_HTC_Cosmos_Trigger_Pull_Right");
+
+	// Joystick
+	const FKey SteamVR_HTC_Cosmos_Joystick_Press_Left("SteamVR_HTC_Cosmos_Joystick_Press_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Touch_Left("SteamVR_HTC_Cosmos_Joystick_Touch_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_X_Left("SteamVR_HTC_Cosmos_Joystick_X_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Y_Left("SteamVR_HTC_Cosmos_Joystick_Y_Left");
+
+	const FKey SteamVR_HTC_Cosmos_Joystick_Press_Right("SteamVR_HTC_Cosmos_Joystick_Press_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Touch_Right("SteamVR_HTC_Cosmos_Joystick_Touch_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_X_Right("SteamVR_HTC_Cosmos_Joystick_X_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Y_Right("SteamVR_HTC_Cosmos_Joystick_Y_Right");
+
+	// Joystick Directions
+	const FKey SteamVR_HTC_Cosmos_Joystick_Up_Left("SteamVR_HTC_Cosmos_Joystick_Up_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Down_Left("SteamVR_HTC_Cosmos_Joystick_Down_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_L_Left("SteamVR_HTC_Cosmos_Joystick_L_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_R_Left("SteamVR_HTC_Cosmos_Joystick_R_Left");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Up_Right("SteamVR_HTC_Cosmos_Joystick_Up_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_Down_Right("SteamVR_HTC_Cosmos_Joystick_Down_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_L_Right("SteamVR_HTC_Cosmos_Joystick_L_Right");
+	const FKey SteamVR_HTC_Cosmos_Joystick_R_Right("SteamVR_HTC_Cosmos_Joystick_R_Right");
+
 }
 
 namespace OculusTouchKeys

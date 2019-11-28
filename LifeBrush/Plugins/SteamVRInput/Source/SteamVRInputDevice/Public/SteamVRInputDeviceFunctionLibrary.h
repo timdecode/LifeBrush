@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Features/IModularFeatures.h"
 #include "Runtime/Core/Public/GenericPlatform/GenericPlatformProcess.h"
+#include "Runtime/Core/Public/HAL/PlatformFilemanager.h"
 #include "IMotionController.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -42,6 +43,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #define ACTION_PATH_VIBRATE_LEFT		"/actions/main/out/vibrateleft"
 #define ACTION_PATH_VIBRATE_RIGHT		"/actions/main/out/vibrateright"
+#define MAX_BINDINGINFO_COUNT	5
 
 /** UE4 Bone definition of the SteamVR Skeleton */
 USTRUCT(BlueprintType)
@@ -169,11 +171,13 @@ struct STEAMVRINPUTDEVICE_API FSteamVRAction
 {
 	GENERATED_BODY()
 
+	// The SteamVR name of the action (e.g. Teleport, OpenConsole)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	FName		Name;			// The SteamVR name of the action (e.g. Teleport, OpenConsole)
+	FName		Name;
 
+	// The path defined for the action (e.g. main/in/{ActionName})
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	FString		Path;			// The path defined for the action (e.g. main/in/{ActionName})
+	FString		Path;
 
 	VRActionHandle_t Handle;				// The handle to the SteamVR Action 
 	VRInputValueHandle_t ActiveOrigin;		// The input value handle of the origin of the latest input event
@@ -196,8 +200,10 @@ struct STEAMVRINPUTDEVICE_API FSteamVRActionSet
 {
 	GENERATED_BODY()
 
+	// The path defined for this action set (e.g. /actions/main)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	FString		Path;			// The path defined for this action set (e.g. /actions/main)
+	FString		Path;			
+	
 	VRActionSetHandle_t Handle;	// The handle to the SteamVR Action Set
 
 	FSteamVRActionSet(const FString ActionSetPath, const VRActionHandle_t ActionSetHandle)
@@ -215,14 +221,17 @@ struct STEAMVRINPUTDEVICE_API FSteamVRInputOriginInfo
 {
 	GENERATED_BODY()
 
+	// The tracked device index for the device or k_unTrackedDeviceInvalid (0xFFFFFFFF)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	int32	TrackedDeviceIndex;			// The tracked device index for the device or k_unTrackedDeviceInvalid (0xFFFFFFFF)
+	int32	TrackedDeviceIndex;
 	
+	//  The name of the component of the tracked device's render model that represents this input source, or an empty string if there is no associated render model component.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	FString	RenderModelComponentName;	//  The name of the component of the tracked device's render model that represents this input source, or an empty string if there is no associated render model component.
+	FString	RenderModelComponentName;
 
+	//  The tracked device's model info
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SteamVR Input")
-	FString	TrackedDeviceModel;			//  The tracked device's model info
+	FString	TrackedDeviceModel;
 
 	FSteamVRInputOriginInfo(const int32 InDeviceIndex, const FString InRenderModelComponentName)
 		: TrackedDeviceIndex(InDeviceIndex)
@@ -232,6 +241,72 @@ struct STEAMVRINPUTDEVICE_API FSteamVRInputOriginInfo
 	FSteamVRInputOriginInfo()
 	{
 		TrackedDeviceIndex = 0;
+	}
+};
+
+/** Retargetting information for the SteamVR skeleton to UE4 stock skeleton */
+USTRUCT(BlueprintType)
+struct STEAMVRINPUTDEVICE_API FUE4RetargettingRefs
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	bool bIsInitialized;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	bool bIsRightHanded;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FVector KnuckleAverageMS_UE4;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FVector WristSideDirectionLS_UE4;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FVector WristForwardLS_UE4;
+
+	FUE4RetargettingRefs()
+	{
+		bIsInitialized = false;
+		bIsRightHanded = false;
+		KnuckleAverageMS_UE4 = FVector::ZeroVector;
+		WristSideDirectionLS_UE4 = FVector::RightVector;
+		WristForwardLS_UE4 = FVector::ForwardVector;
+	}
+};
+
+/** Information about the input bindings for an action on currently active controller (i.e device path, input path, mode, slot)  */
+USTRUCT(BlueprintType)
+struct STEAMVRINPUTDEVICE_API FSteamVRInputBindingInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FName	DevicePathName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FName	InputPathName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FName	ModeName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SteamVR Input")
+	FName	SlotName;
+
+	FSteamVRInputBindingInfo()
+	{
+		DevicePathName = NAME_None;
+		InputPathName = NAME_None;
+		ModeName = NAME_None;
+		SlotName = NAME_None;
+	}
+
+	FSteamVRInputBindingInfo(FName InDevicePathName, FName InInputPathName, FName InModeName, FName InSlotName) 
+		: DevicePathName(InDevicePathName)
+		, InputPathName(InInputPathName)
+		, ModeName(InModeName)
+		, SlotName(InSlotName)
+	{
 	}
 };
 
@@ -515,6 +590,23 @@ public:
 	static void ShowAllSteamVR_ActionOrigins();
 
 	/**
+	* Retrieves useful information about the SteamVR input bindings for an action.
+	* @param SteamVRActionHandle - The action handle of the action that binding info will be retrieved for the currently active controller. Use Find SteamVRAction node to get a handle
+	* @return SteamVRInputBindingInfo - Array of binding info for an action with the currently active controller
+	*/
+	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
+	static TArray<FSteamVRInputBindingInfo> GetSteamVR_InputBindingInfo(FSteamVRAction SteamVRActionHandle);
+
+	/**
+	* Retrieves useful information about the SteamVR input bindings with a given action name and action set.
+	* @param ActionName - The name of the action that binding info will be retrieved for the currently active controller
+	* @param ActionSet - The name of the action set that the action belongs in
+	* @return SteamVRInputBindingInfo - Array of binding info for an action with the currently active controller
+	*/
+	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
+	static TArray<FSteamVRInputBindingInfo> FindSteamVR_InputBindingInfo(FName ActionName, FName ActionSet = FName("main"));
+
+	/**
 	* Sets the zero pose for the seated tracker coordinate system to the current position and yaw of the HMD. 
 	* After this call, calls that pass TrackingUniverseSeated as the origin will be relative to this new zero pose.
 	*
@@ -523,6 +615,29 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
 	static bool ResetSeatedPosition();
+
+	/**
+	* Returns the user's HMD's current IPD (interpupillary distance) setting in millimetres.
+	* @return float - The current IPD setting of the user's headset in millimetres
+	*/
+	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
+	static float GetUserIPD();
+
+	/**
+	* Shows the Bindings dashboard
+	* @param ActionSet - The name of the action set to open the bindings to, empty will open the root of the binding page 
+	* @param bShowInVR - Whether to show the bindings UI in VR, false will show the UI in Desktop
+	*/
+	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
+	static void ShowBindingsUI(EHand Hand, FName ActionSet = FName("main"), bool bShowInVR = true);
+
+	/**
+	* Deletes the user's input.ini 
+	* @return UserInputFile - The absolute path to the user's input.ini
+	* @return bool - Whether or not the delete was successful
+	*/
+	UFUNCTION(BlueprintCallable, Category = "SteamVR Input")
+	static bool DeleteUserInputIni(FString& UserInputFile);
 
 	/**
 	* Get the SteamVR Bone Transform value in UE coordinates

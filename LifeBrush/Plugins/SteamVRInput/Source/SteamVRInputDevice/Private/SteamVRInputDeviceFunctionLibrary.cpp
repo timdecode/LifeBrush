@@ -64,7 +64,7 @@ void USteamVRInputDeviceFunctionLibrary::PlaySteamVR_HapticFeedback(ESteamVRHand
 			ActiveSkeletalHand = SteamVRInputDevice->VRSkeletalHandleLeft;
 			VRInput()->TriggerHapticVibrationAction(SteamVRInputDevice->VRVibrationLeft, StartSecondsFromNow, DurationSeconds, Frequency, Amplitude, k_ulInvalidInputValueHandle);
 		}
-		else if (Hand == ESteamVRHand::VR_Right && SteamVRInputDevice->VRVibrationLeft != k_ulInvalidActionHandle && SteamVRInputDevice->bIsSkeletalControllerRightPresent && SteamVRInputDevice->VRSkeletalHandleRight != k_ulInvalidActionHandle)
+		else if (Hand == ESteamVRHand::VR_Right && SteamVRInputDevice->VRVibrationRight != k_ulInvalidActionHandle && SteamVRInputDevice->bIsSkeletalControllerRightPresent && SteamVRInputDevice->VRSkeletalHandleRight != k_ulInvalidActionHandle)
 		{
 			if (SteamVRInputDevice->VRVibrationRight == k_ulInvalidActionHandle)
 			{
@@ -268,10 +268,10 @@ void USteamVRInputDeviceFunctionLibrary::GetSkeletalTransform(FSteamVRSkeletonTr
 		RightHand.Thumb_2 = OutPose[4];
 		RightHand.Thumb_3 = OutPose[5];
 
-		RightHand.Index_0 =  OutPose[6];
-		RightHand.Index_1 =  OutPose[7];
-		RightHand.Index_2 =  OutPose[8];
-		RightHand.Index_3 =  OutPose[9];
+		RightHand.Index_0 = OutPose[6];
+		RightHand.Index_1 = OutPose[7];
+		RightHand.Index_2 = OutPose[8];
+		RightHand.Index_3 = OutPose[9];
 		RightHand.Index_4 = OutPose[10];
 
 		RightHand.Middle_0 = OutPose[11];
@@ -292,8 +292,8 @@ void USteamVRInputDeviceFunctionLibrary::GetSkeletalTransform(FSteamVRSkeletonTr
 		RightHand.Pinky_3 = OutPose[24];
 		RightHand.Pinky_4 = OutPose[25];
 
-		RightHand.Aux_Thumb =  OutPose[26];
-		RightHand.Aux_Index =  OutPose[27];
+		RightHand.Aux_Thumb = OutPose[26];
+		RightHand.Aux_Index = OutPose[27];
 		RightHand.Aux_Middle = OutPose[28];
 		RightHand.Aux_Ring = OutPose[29];
 		RightHand.Aux_Pinky = OutPose[30];
@@ -374,7 +374,7 @@ void USteamVRInputDeviceFunctionLibrary::FindSteamVR_Action(FName ActionName, bo
 	TArray<FSteamVRActionSet> SteamVRActionSets;
 	GetSteamVR_ActionSetArray(SteamVRActionSets);
 
-	// Find Action
+	// Find Action Set
 	for (FSteamVRActionSet SteamVRDefinedActionSet : SteamVRActionSets)
 	{
 		if (SteamVRDefinedActionSet.Path.Equals(InActionSet, ESearchCase::IgnoreCase))
@@ -495,14 +495,14 @@ void USteamVRInputDeviceFunctionLibrary::ShowSteamVR_ActionOrigin(FSteamVRAction
 		// Show the action origin in user's hmd
 		EVRInputError Err = VRInput()->ShowActionOrigins(0, SteamVRAction.Handle);
 		FSteamVRInputOriginInfo OriginInfo;
-		
+
 		if (GetSteamVR_OriginTrackedDeviceInfo(SteamVRAction, OriginInfo))
 		{
-			VRActiveActionSet_t ActiveActionSets[] = {0};
+			VRActiveActionSet_t ActiveActionSets[] = { 0 };
 			ActiveActionSets[0].ulActionSet = SteamVRActionSet.Handle;
 			VRInput()->ShowBindingsForActionSet(ActiveActionSets, sizeof(ActiveActionSets[0]), 1, SteamVRAction.ActiveOrigin);
 
-			UE_LOG(LogTemp, Warning, TEXT("Action [%s] triggered from Device [%i][%s] at Component [%s]"), *SteamVRAction.Name.ToString(), OriginInfo.TrackedDeviceIndex, *OriginInfo.TrackedDeviceModel, *OriginInfo.RenderModelComponentName);
+			//UE_LOG(LogTemp, Warning, TEXT("Action [%s] triggered from Device [%i][%s] at Component [%s]"), *SteamVRAction.Name.ToString(), OriginInfo.TrackedDeviceIndex, *OriginInfo.TrackedDeviceModel, *OriginInfo.RenderModelComponentName);
 		}
 	}
 }
@@ -535,7 +535,7 @@ bool USteamVRInputDeviceFunctionLibrary::GetSteamVR_HandPoseRelativeToNow(FVecto
 			VRActionHandle_t HandActionHandle = (Hand == ESteamVRHand::VR_Left) ? SteamVRInputDevice->VRControllerHandleLeft : SteamVRInputDevice->VRControllerHandleRight;
 			if (HandActionHandle != k_ulInvalidActionHandle)
 			{
-				InputPoseActionData_t PoseData = {0};
+				InputPoseActionData_t PoseData = { 0 };
 				EVRInputError InputError = VRInput()->GetPoseActionDataRelativeToNow(HandActionHandle, VRCompositor()->GetTrackingSpace(), PredictedSecondsFromNow, &PoseData, sizeof(PoseData), k_ulInvalidInputValueHandle);
 
 				if (InputError == VRInputError_None)
@@ -570,7 +570,7 @@ bool USteamVRInputDeviceFunctionLibrary::GetSteamVR_HandPoseRelativeToNow(FVecto
 
 					return true;
 				}
-			}			
+			}
 		}
 	}
 
@@ -612,6 +612,99 @@ void USteamVRInputDeviceFunctionLibrary::ShowAllSteamVR_ActionOrigins()
 	VRInput()->ShowBindingsForActionSet(ActiveActionSets, sizeof(ActiveActionSets[0]), 0, 0);
 }
 
+TArray<FSteamVRInputBindingInfo> USteamVRInputDeviceFunctionLibrary::GetSteamVR_InputBindingInfo(FSteamVRAction SteamVRActionHandle)
+{
+	// Setup variables to be used by the OpenVR call
+	TArray<FSteamVRInputBindingInfo> SteamVRBindingInfo;
+	InputBindingInfo_t* InputBindingInfo = new InputBindingInfo_t[MAX_BINDINGINFO_COUNT];
+	uint32_t BindingInfoCount = 0;
+	EVRInputError BindingInfoError = VRInputError_NoData;
+
+	// Execute OpenVR call GetActionBindingInfo if action handle is valid and VRInput is present
+	if (VRInput() && !SteamVRActionHandle.Path.IsEmpty())
+	{
+		// Get binding info for provided action handle in the currently active controller type
+		BindingInfoError = VRInput()->GetActionBindingInfo(SteamVRActionHandle.Handle, InputBindingInfo, sizeof(InputBindingInfo_t), MAX_BINDINGINFO_COUNT, &BindingInfoCount);
+
+		// Check if call is successful
+		if (BindingInfoError != VRInputError_None)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Error retrieving binding info for active controller: %i"), (int)BindingInfoError);
+		}
+		else
+		{
+			// Check if there are binding info related to the action
+			if (BindingInfoCount > 0)
+			{
+				// If there are, go through each binding info found
+				for (int32 i = 0; i < (int32)BindingInfoCount; i++)
+				{
+					// Convert binding info text from a char array to a UE4 FString
+					FString DevicePathName = FString(UTF8_TO_TCHAR(InputBindingInfo[i].rchDevicePathName));
+					FString InputPathName = FString(UTF8_TO_TCHAR(InputBindingInfo[i].rchInputPathName));
+					FString ModeName = FString(UTF8_TO_TCHAR(InputBindingInfo[i].rchModeName));
+					FString SlotName = FString(UTF8_TO_TCHAR(InputBindingInfo[i].rchSlotName));
+
+					// Create a BP compatible binding info struct and add this to the output array
+					SteamVRBindingInfo.Add(FSteamVRInputBindingInfo(
+						FName(*DevicePathName),
+						FName(*InputPathName),
+						FName(*ModeName),
+						FName(*SlotName)
+					));
+
+					//UE_LOG(LogTemp, Error, TEXT("Found Binding Info: %s %s %s %s"), *DevicePathName, *InputPathName, *ModeName, *SlotName);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("No binding info found for action: %s"), *SteamVRActionHandle.Path);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error calling GetSteamVRInputBindingInfo from Blueprint. OpenVRInput is not present or SteamVR Action Handle provided as input is invalid or empty!"));
+	}
+
+	return SteamVRBindingInfo;
+}
+
+TArray<FSteamVRInputBindingInfo> USteamVRInputDeviceFunctionLibrary::FindSteamVR_InputBindingInfo(FName ActionName, FName ActionSet /*= FName("main")*/)
+{
+	// Check for a valid OpenVR session and action name/set
+	if (VRInput() && ActionName != NAME_None && ActionSet != NAME_None)
+	{
+		// Get the action handle for given action name and action set
+		bool bFindResult = false;
+		FSteamVRAction FoundAction;
+		FSteamVRActionSet FoundActionSet;
+		FindSteamVR_Action(ActionName, bFindResult, FoundAction, FoundActionSet, ActionSet);
+
+		// Check if we found the action
+		if (bFindResult)
+		{
+			// If found, get the binding info and return the result
+			return GetSteamVR_InputBindingInfo(FoundAction);
+		}
+		else
+		{
+			// Otherwise, provide an error message
+			UE_LOG(LogTemp, Error, TEXT("Error when calling FindSteamVRInputBindingInfo, there was no Action found with the name %s in action set %s"), *ActionName.ToString(), *ActionSet.ToString());
+		}
+
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error calling FindSteamVRInputBindingInfo from Blueprint. OpenVRInput is not present or SteamVR action name/set provided is empty!"));
+	}
+
+	// Return an empty array of binding info
+	TArray<FSteamVRInputBindingInfo> EmptyInfo;
+	return EmptyInfo;
+
+}
+
 bool USteamVRInputDeviceFunctionLibrary::ResetSeatedPosition()
 {
 	if (VRSystem() && VRInput())
@@ -624,6 +717,86 @@ bool USteamVRInputDeviceFunctionLibrary::ResetSeatedPosition()
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Request to Reset Seated Position was ignored. Use \"Set Tracking Origin\" to \"Eye\" before calling this function."));
+		}
+	}
+
+	return false;
+}
+
+
+float USteamVRInputDeviceFunctionLibrary::GetUserIPD()
+{
+	if (VRSystem())
+	{
+		return VRSystem()->GetFloatTrackedDeviceProperty(k_unTrackedDeviceIndex_Hmd, ETrackedDeviceProperty::Prop_UserIpdMeters_Float) * 1000; // Return IPD in mm
+	}
+
+	return 0.f;
+}
+
+void USteamVRInputDeviceFunctionLibrary::ShowBindingsUI(EHand Hand, FName ActionSet /*= FName("main")*/, bool bShowInVR /*= true*/)
+{
+	FSteamVRInputDevice* SteamVRInputDevice = GetSteamVRInputDevice();
+	if (SteamVRInputDevice && VRSystem() && VRInput())
+	{
+		// Get current SteamVR Action Sets
+		FString InActionSet = TEXT("/actions/") + ActionSet.ToString();
+		TArray<FSteamVRActionSet> SteamVRActionSets;
+		GetSteamVR_ActionSetArray(SteamVRActionSets);
+
+		// Find Action Set
+		FSteamVRActionSet FoundActionSet;
+		bool bActionSetFound = false;
+		for (FSteamVRActionSet SteamVRDefinedActionSet : SteamVRActionSets)
+		{
+			if (SteamVRDefinedActionSet.Path.Equals(InActionSet, ESearchCase::IgnoreCase))
+			{
+				FoundActionSet = SteamVRDefinedActionSet;
+				bActionSetFound = true;
+				break;
+			}
+		}
+
+		// Set selected hand
+		VRActionHandle_t SelectedHand;
+		switch (Hand)
+		{
+			case EHand::VR_RightHand:
+				SelectedHand = SteamVRInputDevice->VRControllerHandleRight;
+				break;
+		
+			default:
+				SelectedHand = SteamVRInputDevice->VRControllerHandleLeft;
+				break;
+		}
+
+		if (bActionSetFound)
+		{
+			VRInput()->OpenBindingUI(nullptr, FoundActionSet.Handle, SelectedHand, !bShowInVR);	
+		}
+		else
+		{
+			VRInput()->OpenBindingUI(nullptr, k_ulInvalidActionSetHandle, SelectedHand, !bShowInVR);
+		}
+	}
+}
+
+bool USteamVRInputDeviceFunctionLibrary::DeleteUserInputIni(FString& UserInputFile)
+{
+	if (GEngine)
+	{
+		FString PlatformDir = UGameplayStatics::GetPlatformName();
+
+		#if !WITH_EDITOR
+		PlatformDir += FString(TEXT("NoEditor"));
+		#endif
+
+		UserInputFile = FPaths::ProjectUserDir() / "Saved" / "Config" / PlatformDir / "Input.ini";
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
+		if (PlatformFile.FileExists(*UserInputFile) && PlatformFile.DeleteFile(*UserInputFile))
+		{
+			return true;
 		}
 	}
 
@@ -661,7 +834,7 @@ void USteamVRInputDeviceFunctionLibrary::LaunchBindingsURL()
 void USteamVRInputDeviceFunctionLibrary::GetFingerCurlsAndSplays(EHand Hand, FSteamVRFingerCurls& FingerCurls, FSteamVRFingerSplays& FingerSplays, ESkeletalSummaryDataType SummaryDataType)
 {
 	FSteamVRInputDevice* SteamVRInputDevice = GetSteamVRInputDevice();
-	if (SteamVRInputDevice != nullptr && VRSystem() &&  VRInput())
+	if (SteamVRInputDevice != nullptr && VRSystem() && VRInput())
 	{
 		// Get action state this frame
 		VRActiveActionSet_t ActiveActionSets[] = {
@@ -701,7 +874,7 @@ void USteamVRInputDeviceFunctionLibrary::GetFingerCurlsAndSplays(EHand Hand, FSt
 
 		InputSkeletalActionData_t actionData;
 		EVRInputError GetSkeletalActionDataError = VRInput()->GetSkeletalActionData(ActiveSkeletalHand, &actionData, sizeof(InputSkeletalActionData_t));
-		
+
 		if (GetSkeletalActionDataError != VRInputError_None)
 		{
 			FingerCurls = {};
@@ -727,7 +900,7 @@ void USteamVRInputDeviceFunctionLibrary::GetFingerCurlsAndSplays(EHand Hand, FSt
 
 		EVRSummaryType SteamVRSummaryType = (SummaryDataType == ESkeletalSummaryDataType::VR_SummaryType_FromDevice) ? VRSummaryType_FromDevice : VRSummaryType_FromAnimation;
 		EVRInputError GetSkeletalSummaryDataError = VRInput()->GetSkeletalSummaryData(ActiveSkeletalHand, SteamVRSummaryType, &ActiveSkeletalSummaryData);
-		
+
 		if (GetSkeletalSummaryDataError != VRInputError_None)
 		{
 			FingerCurls = {};

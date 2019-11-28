@@ -48,6 +48,7 @@ using namespace vr;
 #define TOUCHPAD_DEADZONE				0.0f
 
 // Manifest constants
+#define MAX_ACTION_SETS					25
 #define CONTROLLER_BINDING_PATH			"SteamVRBindings"
 #define ACTION_MANIFEST					"steamvr_manifest.json"
 #define ACTION_MANIFEST_UE				"steamvr_actions.json"
@@ -76,6 +77,7 @@ using namespace vr;
 #define ACTION_PATH_VIBRATE_RIGHT		"/actions/main/out/vibrateright"
 
 // Input paths
+#define ACTION_PATH_HEAD_PROXIMITY		"/user/head/proximity"
 #define ACTION_PATH_CONT_RAW_LEFT		"/user/hand/left/pose/raw"
 #define ACTION_PATH_CONT_RAW_RIGHT		"/user/hand/right/pose/raw"
 #define ACTION_PATH_SPCL_BACK_LEFT		"/user/hand/left/pose/back"					// Special 1
@@ -88,6 +90,8 @@ using namespace vr;
 #define ACTION_PATH_SPCL_PISTOL_RIGHT	"/user/hand/right/pose/pistolgrip"			// Special 8
 #define ACTION_PATH_TRIGGER_LEFT		"/user/hand/left/input/trigger"
 #define ACTION_PATH_TRIGGER_RIGHT		"/user/hand/right/input/trigger"
+#define ACTION_PATH_BUMPER_LEFT			"/user/hand/left/input/bumper"
+#define ACTION_PATH_BUMPER_RIGHT		"/user/hand/right/input/bumper"
 #define ACTION_PATH_THUMBSTICK_LEFT		"/user/hand/left/input/thumbstick"
 #define ACTION_PATH_THUMBSTICK_RIGHT	"/user/hand/right/input/thumbstick"
 #define ACTION_PATH_TRACKPAD_LEFT		"/user/hand/left/input/trackpad"
@@ -277,6 +281,30 @@ struct FInputMapping
 	FInputMapping() {}
 };
 
+struct FSteamVRInputActionSet
+{
+	int32		Priority;					// The priority of this action set relative to other action sets.	
+	FName		Name;						// The name of the action set
+	FString		RestrictedToDevicePath;		// Device path that this action set is active for
+	FString		SecondaryActionSetPath;		// The path for the secondary action set
+
+	VRActionSetHandle_t Handle;						// This action set's handle
+	VRInputValueHandle_t RestrictedToDeviceHandle;	// Handle of a device path that this action set should be active for.  Use k_ulInvalidInputValueHandle to activate for all devices.
+	VRActionSetHandle_t SecondaryActionSetHandle;	// Secondary action set handle, if RestrictedToDeviceHandle is k_ulInvalidInputValueHandle, this is ignored
+
+	FSteamVRInputActionSet()
+	{}
+
+	FSteamVRInputActionSet(int32 InPriority, FName InName, VRActionSetHandle_t InHandle)
+		: Priority (InPriority)
+		, Name (InName)
+		, Handle (InHandle)
+	{
+		RestrictedToDeviceHandle = k_ulInvalidInputValueHandle;	// All devices
+		SecondaryActionSetHandle = k_ulInvalidActionSetHandle;	// Placeholder. Ignored due to k_ulInvalidValueHandle in RestrictedToDeviceHandle
+	}
+};
+
 struct FSteamVRInputAction
 {
 	FString		Path;					// The path defined for the action (e.g. main/in/{ActionName})
@@ -402,6 +430,7 @@ struct FSteamVRInputState
 	bool bIsAxis2;
 	bool bIsAxis3;
 	bool bIsTrigger;
+	bool bIsBumper;
 	bool bIsThumbstick;
 	bool bIsJoystick;
 	bool bIsTrackpad;
@@ -420,6 +449,7 @@ struct FSteamVRInputState
 	bool bIsPinchGrab;
 	bool bIsPress;
 	bool bIsAppMenu;
+	bool bIsProximity;
 
 	FSteamVRInputState() {}
 };
@@ -429,6 +459,13 @@ struct FSteamVRTemporaryAction
 	FKey UE4Key;
 	FName ActionName;
 	bool bIsY;
+
+	FSteamVRTemporaryAction()
+	{
+		ActionName = NAME_None;
+		UE4Key = EKeys::Invalid;
+		bIsY = false;
+	}
 
 	FSteamVRTemporaryAction(const FKey& inUE4Key, const FName& inActionName)
 		: UE4Key(inUE4Key)
