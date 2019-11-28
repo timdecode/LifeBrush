@@ -17,8 +17,7 @@
 		{
 			"Name": "RuntimeMeshComponent",
 			"Enabled": true,
-			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/ad0b45a6a31e462aba7cf7c790a9c125",
-			"Installed" : true
+			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/ad0b45a6a31e462aba7cf7c790a9c125"
 		},
 		{
 			"Name": "StructBox",
@@ -111,6 +110,10 @@
 			"Name": "SteamVRInput",
 			"Enabled": true,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/401605a650e64a8fa3c0f45838a6357d"
+		},
+		{
+			"Name": "OculusVR",
+			"Enabled": false
 		}
 	],
 	"TargetPlatforms": [
