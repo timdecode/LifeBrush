@@ -160,6 +160,8 @@ void UMeshSimulation::updateInstances()
 		desaturatedCount.FindOrAdd(pair.second);
 	}
 
+	const FTransform farAway = FTransform(FQuat::Identity, FVector(10000.0f, 0.0f, 0.0f), FVector(0.01f));
+
 	// resize the visible ISMCs
 	for (auto& pair : visibleCount)
 	{
@@ -180,7 +182,7 @@ void UMeshSimulation::updateInstances()
 		{
 			do
 			{
-				ismc->AddInstance(FTransform::Identity);
+				ismc->AddInstance(farAway);
 			} while (ismc->GetInstanceCount() < count);
 		}
 
@@ -207,7 +209,7 @@ void UMeshSimulation::updateInstances()
 		{
 			do
 			{
-				ismc->AddInstance(FTransform::Identity);
+				ismc->AddInstance(farAway);
 			} while (ismc->GetInstanceCount() < count);
 		}
 	}
