@@ -54,3 +54,73 @@ void USingleParticleBrownianSimulation::tick(float deltaT)
 		}
 	}
 }
+
+void UGlobalParticleBrownianSimulation::attach()
+{
+	rand.GenerateNewSeed();
+}
+
+void UGlobalParticleBrownianSimulation::detach()
+{
+
+}
+
+void UGlobalParticleBrownianSimulation::tick(float deltaT)
+{
+	if (!enabled) return;
+
+	auto& particles = graph->componentStorage<FFlexParticleObject>();
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+	for (FFlexParticleObject& particle : particles)
+	{
+		if (!particle.isValid()) continue;
+
+		if (!velocities.componentPtrForNode(particle.nodeHandle()))
+		{
+			FGraphNode& node = graph->node(particle.nodeHandle());
+
+			node.addComponent<FVelocityGraphObject>(*graph);
+		}
+	}
+
+	// find _times Num
+	int32 timeSize = 0;
+
+	for (FFlexParticleObject& particle : particles)
+	{
+		if (!particle.isValid()) continue;
+
+		int32 timeIndex = particle.nodeHandle().index;
+
+		if (timeIndex > timeSize)
+			timeSize = timeIndex;
+	}
+
+	_times.SetNum(timeSize + 1);
+
+	// make sure we have velocities
+	for (FFlexParticleObject& particle : particles)
+	{
+		if (!particle.isValid()) continue;
+
+		int32 timeIndex = particle.nodeHandle().index;
+
+		float& timeLeft = _times[timeIndex];
+
+		timeLeft -= deltaT;
+
+		if (timeLeft > 0.0f)
+			continue;
+
+		timeLeft = rand.FRandRange(minTime, maxTime);
+
+
+		FVelocityGraphObject * velocity = velocities.componentPtrForNode(particle.nodeHandle());
+
+		FVector dv = rand.GetUnitVector() * rand.FRandRange(minSpeed, maxSpeed);
+
+		velocity->linearVelocity += dv;
+
+	}
+}
