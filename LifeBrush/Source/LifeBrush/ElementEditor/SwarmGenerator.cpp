@@ -89,34 +89,6 @@ void USwarmGenerator::setPrototype(FGraphNodeHandle exampleHandle)
 	swarmSimulation->setBrushPrototypoe(_brushExampleHandle);
 }
 
-
-FGraphNodeHandle USwarmSimulation::_createAnchor(FVector position, FQuat orientation)
-{
-	FGraphNodeHandle anchorHandle = graph->node(graph->addNode(position, orientation, radius_NC1 * scaleFactor_NC1));
-	{
-		// the star node is only guaranteed to point to valid memory in this block, where we haven't
-		// added any nodes to the graph
-		FGraphNode& anchorNode = anchorHandle(*graph);
-
-		_spaceBVH.insertParticle(anchorNode.id, anchorNode.position, radius_NC1);
-
-		FGraphMesh& mesh = anchorNode.addComponent<FGraphMesh>(*graph);
-
-		mesh.material = material_NC1;
-		mesh.staticMesh = staticMesh_NC1;
-
-		FBoid& boid = anchorNode.addComponent<FBoid>(*graph);
-		boid.radius = radius_NC1;
-
-		anchorNode.addComponent<FStaticPositionObject>(*graph).position = position;
-		anchorNode.addComponent<FFlexParticleObject>(*graph);
-		anchorNode.addComponent<FBoidStar>(*graph);
-		anchorNode.addComponent<FBoidSeeker>(*graph);
-	}
-
-	return anchorHandle;
-}
-
 void USwarmSimulation::_applyStar(FGraphNodeHandle starHandle)
 {
 	FGraphNode starNode = starHandle(*graph);
@@ -172,7 +144,7 @@ void USwarmSimulation::_applyStar(FGraphNodeHandle starHandle)
 
 }
 
-void USwarmSimulation::_updateBVH()
+void USwarmSimulation::_updateSpaceBVH()
 {
 	auto& storage = graph->componentStorage<FBoid>();
 
@@ -195,6 +167,31 @@ void USwarmSimulation::_updateBVH()
 		}
 	}
 }
+
+void USwarmSimulation::_updateRepellerBVH()
+{
+	auto& storage = graph->componentStorage<FBoidRepeller>();
+
+	for (FBoidRepeller& boid : storage)
+	{
+		auto particleIndex = boid.nodeHandle().index;
+
+		FGraphNode& node = graph->node(boid.nodeHandle());
+
+		if (!boid.isValid() && _repellerBVH.containsParticle(particleIndex))
+		{
+			_repellerBVH.removeParticle(particleIndex);
+		}
+		else
+		{
+			if (_repellerBVH.containsParticle(particleIndex))
+				_repellerBVH.updateParticle(particleIndex, node.position, 1.0f);
+			else
+				_repellerBVH.insertParticle(particleIndex, node.position, 1.0f);
+		}
+	}
+}
+
 
 
 
@@ -234,7 +231,8 @@ void USwarmSimulation::begin()
 
 	rand.GenerateNewSeed();
 
-	_updateBVH();
+	_updateSpaceBVH();
+	_updateRepellerBVH();
 }
 
 void USwarmSimulation::detach()
@@ -352,6 +350,8 @@ void USwarmSimulation::tick(float deltaT)
 {
 	graph->beginTransaction();
 
+	_updateSpaceBVH();
+
 
 	for (auto& brushPoint : _brushPoints)
 	{
@@ -368,7 +368,6 @@ void USwarmSimulation::tick(float deltaT)
 		if (hit)
 			continue;;
 
-		_updateBVH();
 
 		if (_brushPrototype)
 		{
@@ -376,6 +375,12 @@ void USwarmSimulation::tick(float deltaT)
 			FQuat rotation = randomQuat();
 
 			FGraphNodeHandle handle = copyElement(_brushPrototype, ruleGraph, *graph, point, rotation, FGraphNodeHandle::null);
+
+			if (FBoid * boid = graph->componentPtr<FBoid>(handle))
+			{
+				_spaceBVH.insertParticle(handle.index, point, boid->radius);
+			}
+
 		}
 	}
 
@@ -389,6 +394,8 @@ void USwarmSimulation::tick(float deltaT)
 
 	_tickBoidSeekers(deltaT);
 
+	_updateRepellerBVH();
+	_tickBoidRepellers(deltaT);
 
 	graph->endTransaction();
 }
@@ -559,6 +566,47 @@ void USwarmSimulation::_tickBoidStars(float deltaT)
 				float distance = FVector::Dist(graph->node(cur).position, graph->node(next).position);
 
 				auto oneRingEdge = graph->connectNodes<FFlexConnection>(cur, next, distance, 0.5f);
+			}
+		}
+	}
+}
+
+void USwarmSimulation::_tickBoidRepellers(float deltaT)
+{
+	auto& boidRepellers = graph->componentStorage<FBoidRepeller>();
+
+	auto& velocities = graph->componentStorage<FVelocityGraphObject>();
+
+
+	for (FBoidRepeller& repeller : boidRepellers)
+	{
+		if (!repeller.isValid())
+			continue;
+
+		FGraphNode& repellerNode = graph->node(repeller.nodeHandle());
+
+		for (FBoidRepelledPair& pair : repelledPairs)
+		{
+			if (repeller.species == pair.speciesA || repeller.species == pair.speciesB)
+			{
+				FName otherSpecies = repeller.species == pair.speciesA ? pair.speciesB : pair.speciesA;
+
+				unrealAABB::AABB query(repellerNode.position, pair.distance);
+
+				_repellerBVH.query(query, [&](unsigned int particleIndex) {
+					FGraphNodeHandle otherHandle(particleIndex);
+
+					FGraphNode& otherNode = graph->node(otherHandle);
+
+					FVector dir = otherNode.position - repellerNode.position;
+
+					dir = dir.GetSafeNormal();
+
+					repellerNode.position -= dir * deltaT;
+					otherNode.position += dir * deltaT;
+
+					return true;
+				});
 			}
 		}
 	}

@@ -233,6 +233,33 @@ public:
 	TArray<FName> bobSpecies;
 };
 
+USTRUCT(BlueprintType)
+struct LIFEBRUSH_API FBoidRepeller : public FGraphObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FName species;
+};
+
+USTRUCT(BlueprintType)
+struct LIFEBRUSH_API FBoidRepelledPair
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FName speciesA;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	FName speciesB;
+
+	// How far apart we want them, past this distance we do not apply the rule.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
+	float distance;
+};
+
 // Add this to a node to prevent further bindings from an FBoidSeeker
 USTRUCT(BlueprintType)
 struct LIFEBRUSH_API FBoidSeekerBlocker : public FGraphObject
@@ -277,37 +304,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
 	UStaticMesh * staticMesh_segment = nullptr;
 
-	// -------------------------------------------------
-	// 7S Head
-	// -------------------------------------------------
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	float radius_7S = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	float scaleFactor_7S = 0.02;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	UMaterialInterface * material_7S = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	UStaticMesh * staticMesh_7S = nullptr;
-
-	// -------------------------------------------------
-	// NC1 Head
-	// -------------------------------------------------
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	float radius_NC1 = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	float scaleFactor_NC1 = 0.02;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	UMaterialInterface * material_NC1 = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LifeBrush")
-	UStaticMesh * staticMesh_NC1 = nullptr;
+	TArray<FBoidRepelledPair> repelledPairs;
 
 	// -------------------------------------------------
 	// Misc
@@ -328,13 +326,12 @@ public:
 public:
 	void addBrushPoint(FVector point, ESwarmGenerator_BrushType type);
 
-	FGraphNodeHandle _createAnchor(FVector position, FQuat orientation);
-
 	void _applyStar(FGraphNodeHandle starHandle);
 
 	FQuat randomQuat();
 
-	void _updateBVH();
+	void _updateSpaceBVH();
+	void _updateRepellerBVH();
 
 	void setBrushPrototypoe(FGraphNodeHandle handle);
 
@@ -344,6 +341,8 @@ protected:
 	void _tickFilamentAnchors(float deltaT);
 
 	void _tickBoidStars(float deltaT);
+
+	void _tickBoidRepellers(float deltaT);
 
 	void _tickBoidGenerators();
 	FGraphNodeHandle _handleInFilamentSequence(int32 sequenceIndex, FGraphNodeHandle ruleNode);
@@ -388,6 +387,8 @@ protected:
 public:
 	// Spatial index for NC1 heads and 7S tails, but not collagen segments.
 	BVH_t _spaceBVH;
+
+	BVH_t _repellerBVH;
 };
 
 
