@@ -18,6 +18,7 @@ Requirements:
 - Windows 10
 - At least an Nvidia GTX 1080
 - HTC Vive
+- Visual Studio 2015 (vcg lib has over the top template code that breaks VS 2017)
 
 I haven't tested with an Oculus Rift, I'm pretty sure it won't work, but I would like to make it work someday.
 
