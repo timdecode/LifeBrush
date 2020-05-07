@@ -324,6 +324,7 @@ public:
 	FGraphNode( FVector& position_in, FQuat& orientation_in, float scale_in ) : position( position_in ), orientation( orientation_in ), scale( scale_in )
 	{
 		edges.Empty();
+		
 	}
 
 	UPROPERTY( EditAnywhere, BlueprintReadWrite, Category = "ShipEditor" )

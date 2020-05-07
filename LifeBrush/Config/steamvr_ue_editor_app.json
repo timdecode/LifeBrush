@@ -2,15 +2,15 @@
 	"source": "UE",
 	"applications": [
 		{
-			"app_key": "application.generated.ue.ue4game.ue4editor.exe",
+			"app_key": "application.generated.ue.ue4game-cl-3832480.ue4editor.exe",
 			"launch_type": "url",
 			"url": "steam://launch/",
-			"action_manifest_path": "C:/Users/timothyd/Documents/GitHub/LifeBrush/LifeBrush/Config/SteamVRBindings/steamvr_manifest.json",
+			"action_manifest_path": "D:/LifeBrush/LifeBrush/LifeBrush/Config/SteamVRBindings/steamvr_manifest.json",
 			"strings":
 			{
 				"en_us":
 				{
-					"name": "UE4Game [UE Editor]"
+					"name": "UE4Game-CL-3832480 [UE Editor]"
 				}
 			}
 		}
